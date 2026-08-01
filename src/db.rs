@@ -7,12 +7,37 @@ use std::env;
 
 use anyhow::{Context, Result, anyhow};
 use postgres::types::ToSql;
-use postgres::{Client, NoTls, Transaction};
+use postgres::{Client, Config, NoTls, Transaction};
 
 use crate::model::User;
 
 /// Environment variable holding the connection string.
 pub const URL_VAR: &str = "DATABASE_URL";
+
+/// Directory holding the local PostgreSQL socket.
+const SOCKET_DIR: &str = "/run/postgresql";
+
+/// Parses a connection string, defaulting to the local socket when it names no host.
+///
+/// `psql` reads `postgresql:///goodbye` as "connect over the local socket", but
+/// that fallback lives in libpq, not in this driver, which instead refuses with
+/// "both host and hostaddr are missing". Since the short form is the natural one
+/// to write, it is honoured here rather than documented as a trap.
+///
+/// # Errors
+///
+/// Fails when the string is not a valid connection string.
+pub fn connection_config(url: &str) -> Result<Config> {
+    let mut config: Config = url
+        .parse()
+        .with_context(|| format!("{URL_VAR} is not a valid connection string"))?;
+
+    if config.get_hosts().is_empty() {
+        config.host_path(SOCKET_DIR);
+    }
+
+    Ok(config)
+}
 
 /// Schema applied on every start. Idempotent, so there is no migration step.
 const SCHEMA: &str = "
@@ -68,7 +93,8 @@ impl Store {
         let url = env::var(URL_VAR)
             .map_err(|_| anyhow!("{URL_VAR} is not set. See the README for the setup steps"))?;
 
-        let client = Client::connect(&url, NoTls)
+        let client = connection_config(&url)?
+            .connect(NoTls)
             .with_context(|| format!("could not connect to PostgreSQL using {URL_VAR}"))?;
 
         let mut store = Self { client };
