@@ -87,6 +87,11 @@ permanent.
 
 Tables are created on first run. There is no migration step.
 
+If the banner reports `DATABASE_URL is not set` even though you exported it,
+check whether the terminal you launched from predates the export. A shell reads
+`~/.zshrc` once, at startup, so an older terminal never sees a line added later.
+Open a new one, or `source ~/.zshrc`.
+
 If `DATABASE_URL` is unset or the server is unreachable, the application still
 starts and every list still works, but unfollowing is disabled. An empty
 keep-list and an unloadable keep-list look identical in a set difference, and one
