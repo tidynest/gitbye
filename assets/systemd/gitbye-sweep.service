@@ -1,5 +1,5 @@
 [Unit]
-Description=Gitbye follow-graph sweep
+Description=GitBye follow-graph sweep
 Documentation=https://github.com/tidynest/gitbye
 # The sweep needs GitHub and PostgreSQL, so there is no point starting before
 # the network is up.

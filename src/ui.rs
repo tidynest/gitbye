@@ -147,7 +147,7 @@ fn chrome(app: &mut GitbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
 
     TopBottomPanel::top("chrome").frame(frame).show(ctx, |ui| {
         ui.horizontal(|ui| {
-            ui.label(strong("gitbye", 19.0, theme::TEXT));
+            ui.label(strong("GitBye", 19.0, theme::TEXT));
             ui.add_space(14.0);
 
             let field = TextEdit::singleline(&mut app.filter)

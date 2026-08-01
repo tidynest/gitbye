@@ -1,4 +1,4 @@
-# Gitbye
+# GitBye
 
 A desktop application that compares the GitHub accounts you follow against the
 accounts following you, then lets you unfollow the ones that never reciprocated.
@@ -103,12 +103,17 @@ A Wayland client cannot position its own window, so placement belongs to the
 compositor. Add these to `~/.config/hypr/hyprland.conf`:
 
 ```
-windowrulev2 = float, class:^(gitbye)$
-windowrulev2 = center, class:^(gitbye)$
+windowrule = float on, match:class ^(gitbye)$
+windowrule = center on, match:class ^(gitbye)$
 ```
 
 The window then opens floating and centred, and drags with the stock `SUPER`
 plus left-drag binding.
+
+Note the rule matches the **app id**, `gitbye`, which stays lowercase even
+though the application presents itself as GitBye. `windowrulev2` is deprecated
+in Hyprland 0.56 and is silently ignored when loaded from a config file, so a
+rule written that way appears to be accepted while doing nothing.
 
 ## Install
 
@@ -122,7 +127,7 @@ cargo build --release && install -Dm755 "$(cargo metadata --format-version 1 --n
 install -Dm644 assets/gitbye.desktop ~/.local/share/applications/gitbye.desktop && install -Dm644 assets/gitbye.svg ~/.local/share/icons/hicolor/scalable/apps/gitbye.svg && update-desktop-database ~/.local/share/applications
 ```
 
-Then `gitbye` from a terminal, or Gitbye from the launcher.
+Then `gitbye` from a terminal, or GitBye from the launcher.
 
 ## Modes
 

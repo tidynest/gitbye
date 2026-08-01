@@ -51,9 +51,8 @@ pub fn column_count(available: f32, gap: f32) -> usize {
 
 /// Which way a relationship runs.
 ///
-/// Drawn as two dots: the left is you, the right is them. A filled dot follows,
-/// a hollow one does not. Every state in the application is one of the four
-/// combinations, so the mark is complete rather than a selection of cases.
+/// Every state in the application is one of the four combinations of these, so
+/// the mark drawn from it is complete rather than a selection of cases.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Reciprocity {
     /// You follow them.
@@ -66,37 +65,100 @@ pub(crate) struct Reciprocity {
     pub(crate) initiator: Initiator,
 }
 
-/// Draws the reciprocity mark inside `rect`.
+/// Draws the relationship mark inside `rect`.
 ///
-/// The connector carries the direction the relationship started in, as an
-/// arrowhead pointing away from whoever moved first. That keeps the origin in
-/// the same mark as the reciprocity rather than adding a second badge beside it.
+/// A heart where affection exists, filled when it is returned and hollow when it
+/// is only offered. A skull over crossed bones where it is one-sided and
+/// unprotected, which is precisely the set the application exists to act on.
+/// The same pair as the launcher icon, carrying the same meaning.
+///
+/// A small chevron ahead of the symbol points away from whoever moved first,
+/// and is absent where the beginning was never observed.
 pub(crate) fn glyph(painter: &Painter, rect: Rect, mark: Reciprocity, tint: Color32) {
-    let middle = rect.center().y;
-    let left = pos2(rect.left() + 4.0, middle);
-    let right = pos2(rect.right() - 4.0, middle);
-    let radius = 3.2;
-
-    painter.line_segment(
-        [left, right],
-        Stroke::new(1.2_f32, tint.gamma_multiply(0.45)),
+    let centre = pos2(rect.right() - 8.0, rect.center().y);
+    origin_arrow(
+        painter,
+        pos2(rect.left() + 2.0, centre.y),
+        mark.initiator,
+        tint,
     );
-    origin_arrow(painter, rect.center(), mark.initiator, tint);
 
-    for (centre, filled) in [(left, mark.outgoing), (right, mark.incoming)] {
-        if filled {
-            painter.circle_filled(centre, radius, tint);
-            continue;
-        }
+    // Followed, not followed back, not spared: the goodbye candidates.
+    if mark.outgoing && !mark.incoming && !mark.shielded {
+        skull(painter, centre, tint);
+        return;
+    }
+
+    // Filled where the affection runs both ways or is deliberately kept,
+    // hollow where it has been offered and not returned.
+    heart(painter, centre, tint, mark.incoming || mark.shielded);
+
+    if mark.shielded {
         painter.circle_stroke(
             centre,
-            radius,
-            Stroke::new(1.4_f32, tint.gamma_multiply(0.7)),
+            8.0,
+            Stroke::new(1.1_f32, theme::AMBER.gamma_multiply(0.8)),
+        );
+    }
+}
+
+/// Sampled points of a heart, in a unit box centred on the origin.
+///
+/// From the classic parametric curve rather than hand-placed beziers, so the
+/// shape stays symmetrical at any size and needs no control points to tune.
+fn heart_outline(centre: Pos2, size: f32) -> Vec<Pos2> {
+    const STEPS: usize = 36;
+    let mut points = Vec::with_capacity(STEPS);
+
+    for step in 0..STEPS {
+        let t = f32::from(u16::try_from(step).unwrap_or(0)) / 36.0 * std::f32::consts::TAU;
+        let x = 16.0 * t.sin().powi(3);
+        let y = 13.0 * t.cos() - 5.0 * (2.0 * t).cos() - 2.0 * (3.0 * t).cos() - (4.0 * t).cos();
+        // The curve is drawn in maths orientation, so y is flipped for the screen.
+        points.push(pos2(centre.x + x * size / 32.0, centre.y - y * size / 32.0));
+    }
+
+    points
+}
+
+/// Draws a heart, filled or outlined.
+fn heart(painter: &Painter, centre: Pos2, tint: Color32, filled: bool) {
+    let points = heart_outline(centre, 15.0);
+
+    if filled {
+        painter.add(Shape::convex_polygon(points, tint, Stroke::NONE));
+        return;
+    }
+    painter.add(Shape::closed_line(
+        points,
+        Stroke::new(1.5_f32, tint.gamma_multiply(0.85)),
+    ));
+}
+
+/// Draws a skull over crossed bones.
+fn skull(painter: &Painter, centre: Pos2, tint: Color32) {
+    let bone = tint.gamma_multiply(0.5);
+    let reach = 6.4;
+
+    for direction in [1.0_f32, -1.0] {
+        painter.line_segment(
+            [
+                pos2(centre.x - reach, centre.y - reach * direction),
+                pos2(centre.x + reach, centre.y + reach * direction),
+            ],
+            Stroke::new(2.0_f32, bone),
         );
     }
 
-    if mark.shielded {
-        painter.circle_stroke(left, radius + 3.4, Stroke::new(1.2_f32, theme::AMBER));
+    // Cranium and jaw as one silhouette, then the sockets punched out of it.
+    painter.circle_filled(centre + vec2(0.0, -1.0), 4.6, tint);
+    painter.rect_filled(
+        Rect::from_center_size(centre + vec2(0.0, 3.4), vec2(5.2, 3.4)),
+        CornerRadius::same(1),
+        tint,
+    );
+    for side in [-1.7_f32, 1.7] {
+        painter.circle_filled(centre + vec2(side, -1.4), 1.5, theme::BASE);
     }
 }
 
@@ -111,10 +173,10 @@ fn origin_arrow(painter: &Painter, centre: Pos2, initiator: Initiator, tint: Col
         Initiator::Unknown => return,
     };
 
-    let length = 3.4;
-    let half = 2.6;
+    let length = 3.0;
+    let half = 2.4;
     let tip = pos2(centre.x + direction * length, centre.y);
-    let back = centre.x - direction * 0.6;
+    let back = centre.x - direction * length;
 
     painter.add(Shape::convex_polygon(
         vec![
@@ -176,8 +238,8 @@ pub(crate) fn account_row(
     glyph(
         painter,
         Rect::from_min_size(
-            pos2(rect.left() + 11.0, rect.center().y - 5.0),
-            vec2(20.0, 10.0),
+            pos2(rect.left() + 8.0, rect.center().y - 8.0),
+            vec2(28.0, 16.0),
         ),
         mark,
         tint,
@@ -185,7 +247,7 @@ pub(crate) fn account_row(
 
     let label = if selected { theme::TEXT } else { theme::DIM };
     painter.text(
-        pos2(rect.left() + 44.0, rect.center().y),
+        pos2(rect.left() + 46.0, rect.center().y),
         Align2::LEFT_CENTER,
         &user.login,
         FontId::new(13.5, FontFamily::Name(theme::MONO.into())),

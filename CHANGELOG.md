@@ -5,6 +5,21 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-02
+
+### Changed
+
+- Row marks now use the same pair as the launcher icon: a heart where affection
+  exists, filled when returned and hollow when only offered, and a skull over
+  crossed bones where a follow is one-sided and unprotected. That last set is
+  exactly what the application exists to act on, so it is the one that looks
+  like a warning
+- The origin chevron moved alongside the symbol, since there is no longer a
+  connector for it to sit on
+- Presented name is GitBye. The binary, the Wayland app id and the database stay
+  lowercase `gitbye`, because the compositor rule and the desktop entry match on
+  the app id
+
 ## [0.4.0] - 2026-08-02
 
 ### Added
@@ -46,7 +61,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Renamed to Gitbye. The binary, the Wayland app id and the database are all
+- Renamed to GitBye. The binary, the Wayland app id and the database are all
   `gitbye` now, so a compositor rule matching the old class needs updating, as
   does `DATABASE_URL`
 

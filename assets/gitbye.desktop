@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=Gitbye
+Name=GitBye
 GenericName=GitHub follow graph
 Comment=Compare who you follow against who follows you back, and part with the rest
 Exec=gitbye

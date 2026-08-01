@@ -90,7 +90,7 @@ fn window() -> Result<ExitCode> {
             // Wayland matches window rules on the app id, which is how the
             // compositor is told to float and centre this window. See the README.
             .with_app_id("gitbye")
-            .with_title("gitbye")
+            .with_title("GitBye")
             .with_inner_size([1180.0, 760.0])
             .with_min_inner_size([720.0, 480.0]),
         // Honoured on X11. Inert on Wayland, where placement belongs to the
@@ -100,7 +100,7 @@ fn window() -> Result<ExitCode> {
     };
 
     eframe::run_native(
-        "gitbye",
+        "GitBye",
         options,
         Box::new(move |cc| Ok(Box::new(GitbyeApp::new(cc, github)))),
     )
