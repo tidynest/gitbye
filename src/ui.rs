@@ -8,14 +8,16 @@
 //! field answers "who", and the bar answers "what now". Each region owns exactly
 //! one of those questions.
 
+use std::time::{Duration, SystemTime};
+
 use eframe::egui::{
     Align, Align2, Area, Color32, Context, CornerRadius, FontFamily, FontId, Frame, Id, Key,
     Layout, Margin, Modal, Order, Rect, RichText, ScrollArea, Sense, SidePanel, Stroke, TextEdit,
     TopBottomPanel, Ui, UiBuilder, Vec2, pos2, vec2,
 };
 
-use crate::app::{Action, GitbyeApp, Tab, Tone};
-use crate::model::{Initiator, User};
+use crate::app::{Action, GitbyeApp, Tab, Tone, View};
+use crate::model::{Event, EventKind, Initiator, User};
 use crate::theme;
 use crate::widgets::{self, ROW_HEIGHT, Reciprocity, RowAction};
 
@@ -37,6 +39,7 @@ enum Intent {
     ClearFilter,
     FocusFilter,
     OpenSheet,
+    ShowHistory,
     CloseSheet,
     Run(Action),
     Keep,
@@ -85,12 +88,13 @@ pub(crate) fn draw(app: &mut GitbyeApp, ctx: &Context) {
 fn shortcuts(app: &GitbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
     let typing = ctx.wants_keyboard_input();
 
-    let (escape, find, all, digits, refresh, enter) = ctx.input(|i| {
+    let (escape, find, all, digits, history, refresh, enter) = ctx.input(|i| {
         (
             i.key_pressed(Key::Escape),
             i.modifiers.command && i.key_pressed(Key::F),
             i.modifiers.command && i.key_pressed(Key::A),
             [Key::Num1, Key::Num2, Key::Num3, Key::Num4].map(|key| i.key_pressed(key)),
+            i.key_pressed(Key::Num5),
             i.key_pressed(Key::R),
             i.key_pressed(Key::Enter),
         )
@@ -118,6 +122,10 @@ fn shortcuts(app: &GitbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
         return;
     }
     if typing {
+        return;
+    }
+    if history {
+        *intent = Some(Intent::ShowHistory);
         return;
     }
     if refresh && !app.busy {
@@ -220,19 +228,38 @@ fn rail(app: &GitbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
         .resizable(false)
         .show(ctx, |ui| {
             for tab in Tab::ALL {
-                if rail_entry(ui, tab, app.count(tab), tab == app.tab) {
+                let active = app.view == View::Accounts && tab == app.tab;
+                if rail_entry(
+                    ui,
+                    &app.count(tab).to_string(),
+                    tab.title(),
+                    tab.colour(),
+                    active,
+                ) {
                     *intent = Some(Intent::Show(tab));
                 }
                 ui.add_space(6.0);
+            }
+
+            // Set apart, because it answers a different question from the four
+            // above it: not who, but what has been happening.
+            ui.add_space(14.0);
+            if rail_entry(
+                ui,
+                &app.history.len().to_string(),
+                "History",
+                theme::AMBER,
+                app.view == View::History,
+            ) {
+                *intent = Some(Intent::ShowHistory);
             }
         });
 }
 
 /// One rail entry. Returns whether it was chosen.
-fn rail_entry(ui: &mut Ui, tab: Tab, count: usize, active: bool) -> bool {
+fn rail_entry(ui: &mut Ui, value: &str, label: &str, tint: Color32, active: bool) -> bool {
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 72.0), Sense::click());
     let hot = response.contains_pointer();
-    let tint = tab.colour();
 
     let ease = ui
         .ctx()
@@ -260,14 +287,14 @@ fn rail_entry(ui: &mut Ui, tab: Tab, count: usize, active: bool) -> bool {
     painter.text(
         pos2(rect.left() + 16.0, rect.top() + 24.0),
         Align2::LEFT_CENTER,
-        count.to_string(),
+        value,
         FontId::new(34.0, FontFamily::Name(theme::STRONG.into())),
         if active { tint } else { theme::TEXT },
     );
     painter.text(
         pos2(rect.left() + 16.0, rect.bottom() - 17.0),
         Align2::LEFT_CENTER,
-        tab.title(),
+        label,
         FontId::proportional(12.0),
         if active { theme::DIM } else { theme::FAINT },
     );
@@ -284,6 +311,11 @@ fn field(app: &mut GitbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
     eframe::egui::CentralPanel::default()
         .frame(frame)
         .show(ctx, |ui| {
+            if app.view == View::History {
+                history_view(ui, app);
+                return;
+            }
+
             let rows = app.visible();
             if rows.is_empty() {
                 empty_state(ui, app);
@@ -377,7 +409,7 @@ fn empty_state(ui: &mut Ui, app: &GitbyeApp) {
 
 /// The bar: what is selected, and the one way forward.
 fn action_bar(app: &GitbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
-    if !app.tab.selectable() {
+    if app.view != View::Accounts || !app.tab.selectable() {
         return;
     }
 
@@ -727,6 +759,7 @@ fn apply(app: &mut GitbyeApp, ctx: &Context, intent: Option<Intent>) {
     match intent {
         Intent::Sync => app.sync(ctx),
         Intent::Show(tab) => {
+            app.view = View::Accounts;
             app.tab = tab;
             app.selected.clear();
         }
@@ -745,6 +778,7 @@ fn apply(app: &mut GitbyeApp, ctx: &Context, intent: Option<Intent>) {
         Intent::ClearFilter => app.filter.clear(),
         Intent::FocusFilter => ctx.memory_mut(|memory| memory.request_focus(filter_id())),
         Intent::OpenSheet => app.sheet = true,
+        Intent::ShowHistory => app.view = View::History,
         Intent::CloseSheet => app.sheet = false,
         Intent::Run(action) => app.run(action, ctx),
         Intent::Keep => {
@@ -766,5 +800,128 @@ fn apply(app: &mut GitbyeApp, ctx: &Context, intent: Option<Intent>) {
                 "https://github.com/{login}"
             )));
         }
+    }
+}
+
+/// The history view: how the graph has moved, and what changed most recently.
+///
+/// Two questions, in the order they are usually asked: what is the shape of it,
+/// and then what specifically happened.
+fn history_view(ui: &mut Ui, app: &GitbyeApp) {
+    ui.label(strong("History", 18.0, theme::TEXT));
+    ui.add_space(3.0);
+    ui.label(
+        RichText::new(tracking_summary(app))
+            .size(12.5)
+            .color(theme::DIM),
+    );
+    ui.add_space(14.0);
+
+    widgets::trend(ui, &app.history, 170.0);
+    ui.add_space(10.0);
+    legend(ui);
+    ui.add_space(20.0);
+
+    ui.label(eyebrow("recent changes"));
+    ui.add_space(8.0);
+
+    if app.events.is_empty() {
+        ui.label(
+            RichText::new("Nothing has changed since the record began.")
+                .size(13.0)
+                .color(theme::FAINT),
+        );
+        return;
+    }
+
+    ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .id_salt("events")
+        .show(ui, |ui| {
+            for event in &app.events {
+                event_row(ui, event);
+            }
+        });
+}
+
+/// How much history there is, in words.
+fn tracking_summary(app: &GitbyeApp) -> String {
+    let Some(first) = app.history.first() else {
+        return "No syncs recorded yet".to_owned();
+    };
+
+    let syncs = app.history.len();
+    let noun = if syncs == 1 { "sync" } else { "syncs" };
+    let span = SystemTime::now()
+        .duration_since(first.taken_at)
+        .unwrap_or_default();
+
+    format!("{syncs} {noun} over {}", span_words(span))
+}
+
+/// Which line is which. Two colours need naming exactly once.
+fn legend(ui: &mut Ui) {
+    ui.horizontal(|ui| {
+        for (tint, label) in [(theme::SEVER, "following"), (theme::BOND, "followers")] {
+            let (dot, _) = ui.allocate_exact_size(Vec2::splat(8.0), Sense::hover());
+            ui.painter().circle_filled(dot.center(), 3.5, tint);
+            ui.add_space(2.0);
+            ui.label(RichText::new(label).size(11.5).color(theme::DIM));
+            ui.add_space(12.0);
+        }
+    });
+}
+
+/// One dated change.
+fn event_row(ui: &mut Ui, event: &Event) {
+    let tint = match event.kind {
+        EventKind::FollowedYou => theme::BOND,
+        EventKind::UnfollowedYou => theme::SEVER,
+        EventKind::YouFollowed => theme::INBOUND,
+    };
+
+    ui.horizontal(|ui| {
+        let (dot, _) = ui.allocate_exact_size(Vec2::splat(8.0), Sense::hover());
+        ui.painter().circle_filled(dot.center(), 3.0, tint);
+        ui.add_space(6.0);
+        ui.label(
+            RichText::new(&event.login)
+                .family(FontFamily::Name(theme::MONO.into()))
+                .size(12.5)
+                .color(theme::TEXT),
+        );
+        ui.label(RichText::new(event.kind.phrase()).size(12.0).color(tint));
+
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            ui.label(RichText::new(ago(event.at)).size(11.5).color(theme::FAINT));
+        });
+    });
+    ui.add_space(5.0);
+}
+
+/// A duration in round words. Precision past the leading unit is noise here.
+fn span_words(span: Duration) -> String {
+    let seconds = span.as_secs();
+    match seconds {
+        0..=3599 => "under an hour".to_owned(),
+        3600..=86_399 => format!("{} hours", seconds / 3600),
+        _ => format!("{} days", seconds / 86_400),
+    }
+}
+
+/// How long ago a moment was, in words.
+fn ago(at: SystemTime) -> String {
+    // A timestamp from the future means the clock moved, not that something is
+    // pending, so it reads as now rather than as a negative age.
+    let seconds = SystemTime::now()
+        .duration_since(at)
+        .unwrap_or_default()
+        .as_secs();
+
+    match seconds {
+        0..=59 => "just now".to_owned(),
+        60..=3599 => format!("{}m ago", seconds / 60),
+        3600..=86_399 => format!("{}h ago", seconds / 3600),
+        _ => format!("{}d ago", seconds / 86_400),
     }
 }

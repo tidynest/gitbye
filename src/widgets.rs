@@ -10,7 +10,7 @@ use eframe::egui::{
     Stroke, StrokeKind, Ui, Vec2, pos2, vec2,
 };
 
-use crate::model::{Initiator, User};
+use crate::model::{Initiator, Snapshot, User};
 use crate::theme;
 
 /// Height of one account row.
@@ -267,6 +267,117 @@ fn paint_row_background(
             StrokeKind::Inside,
         );
     }
+}
+
+/// Draws the two counts over time.
+///
+/// Scaled to the range the data actually occupies rather than to zero. A
+/// zero-based axis would render two nearly flat lines near the top of the box
+/// and hide the only thing the plot is for, which is the change.
+pub(crate) fn trend(ui: &mut Ui, history: &[Snapshot], height: f32) {
+    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::hover());
+    let painter = ui.painter();
+    painter.rect_filled(rect, CornerRadius::same(theme::RADIUS), theme::RAISED);
+
+    let Some((low, high)) = extent(history) else {
+        painter.text(
+            rect.center(),
+            Align2::CENTER_CENTER,
+            "Not enough history yet",
+            FontId::proportional(12.5),
+            theme::FAINT,
+        );
+        return;
+    };
+
+    // A gutter on the left so the range labels sit beside the plot rather than
+    // on top of the line they describe.
+    let plot = Rect::from_min_max(
+        pos2(rect.left() + 46.0, rect.top() + 18.0),
+        pos2(rect.right() - 16.0, rect.bottom() - 18.0),
+    );
+    for (series, tint) in [
+        (Series::Followers, theme::BOND),
+        (Series::Following, theme::SEVER),
+    ] {
+        let points: Vec<Pos2> = history
+            .iter()
+            .enumerate()
+            .map(|(index, snapshot)| {
+                let across = fraction(index, history.len().saturating_sub(1));
+                let up =
+                    f32::from(u16::try_from(series.of(snapshot).saturating_sub(low)).unwrap_or(0))
+                        / f32::from(u16::try_from(high - low).unwrap_or(1).max(1));
+                pos2(
+                    plot.left() + across * plot.width(),
+                    plot.bottom() - up * plot.height(),
+                )
+            })
+            .collect();
+
+        painter.add(Shape::line(points.clone(), Stroke::new(1.8_f32, tint)));
+        if let Some(last) = points.last() {
+            painter.circle_filled(*last, 3.0, tint);
+        }
+    }
+
+    for (value, y) in [(high, plot.top()), (low, plot.bottom())] {
+        painter.text(
+            pos2(plot.left() - 10.0, y),
+            Align2::RIGHT_CENTER,
+            format!("{value}"),
+            FontId::proportional(10.5),
+            theme::FAINT,
+        );
+    }
+}
+
+/// Which line is being drawn.
+#[derive(Clone, Copy)]
+enum Series {
+    Following,
+    Followers,
+}
+
+impl Series {
+    /// Reads this series out of a snapshot.
+    fn of(self, snapshot: &Snapshot) -> usize {
+        match self {
+            Self::Following => snapshot.following,
+            Self::Followers => snapshot.followers,
+        }
+    }
+}
+
+/// Lowest and highest value across both series, or `None` when there is not
+/// enough history to draw a line.
+fn extent(history: &[Snapshot]) -> Option<(usize, usize)> {
+    if history.len() < 2 {
+        return None;
+    }
+
+    let values = history
+        .iter()
+        .flat_map(|snapshot| [snapshot.following, snapshot.followers]);
+    let low = values.clone().min()?;
+    let high = values.max()?;
+
+    // A perfectly flat history would divide by zero, so widen it by one.
+    Some(if low == high {
+        (low, high + 1)
+    } else {
+        (low, high)
+    })
+}
+
+/// Position of one point along the horizontal axis, without a lossy cast.
+fn fraction(index: usize, last: usize) -> f32 {
+    if last == 0 {
+        return 0.0;
+    }
+    let index = u16::try_from(index).unwrap_or(u16::MAX);
+    let last = u16::try_from(last).unwrap_or(u16::MAX).max(1);
+    f32::from(index) / f32::from(last)
 }
 
 /// Draws one choice inside the action sheet.

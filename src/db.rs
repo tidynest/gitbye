@@ -10,7 +10,7 @@ use anyhow::{Context, Result, anyhow};
 use postgres::types::ToSql;
 use postgres::{Client, Config, NoTls, Transaction};
 
-use crate::model::{Initiator, Relationship, User};
+use crate::model::{Initiator, Relationship, Snapshot, User};
 
 /// Environment variable holding the connection string.
 pub const URL_VAR: &str = "DATABASE_URL";
@@ -247,6 +247,38 @@ impl Store {
             .context("could not write the relationship history")?;
 
         Ok(())
+    }
+
+    /// Every recorded sync, oldest first, reduced to its two counts.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the query cannot be executed.
+    pub fn history(&mut self) -> Result<Vec<Snapshot>> {
+        let rows = self
+            .client
+            .query(
+                "SELECT run.taken_at,
+                        count(*) FILTER (WHERE member.direction = 'following') AS following,
+                        count(*) FILTER (WHERE member.direction = 'follower')  AS followers
+                 FROM sync_run run
+                 JOIN sync_member member ON member.run_id = run.id
+                 GROUP BY run.id, run.taken_at
+                 ORDER BY run.taken_at",
+                &[],
+            )
+            .context("could not read the sync history")?;
+
+        Ok(rows
+            .iter()
+            .map(|row| Snapshot {
+                taken_at: row.get(0),
+                // Counts come back as BIGINT and cannot be negative, so the
+                // conversion is total rather than lossy.
+                following: usize::try_from(row.get::<_, i64>(1)).unwrap_or(0),
+                followers: usize::try_from(row.get::<_, i64>(2)).unwrap_or(0),
+            })
+            .collect())
     }
 
     /// Records one sync, so follow-graph trends can be reported later.

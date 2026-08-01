@@ -15,8 +15,20 @@ use eframe::egui::{Color32, Context};
 
 use crate::db::Store;
 use crate::github::Github;
-use crate::model::{Buckets, Initiator, Msg, User, attribute, bucket};
+use crate::model::{
+    Buckets, Event, Initiator, Msg, Recorded, Snapshot, User, attribute, bucket, recent_events,
+};
 use crate::{theme, ui};
+
+/// Which of the two things the window is showing.
+///
+/// The accounts and their history answer different questions, so they are
+/// different views rather than a fifth bucket.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum View {
+    Accounts,
+    History,
+}
 
 /// Which bucket is on screen.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -88,6 +100,9 @@ impl Action {
         }
     }
 }
+
+/// How many recent changes the history view lists.
+const EVENT_LIMIT: usize = 40;
 
 /// Renders a count with its noun, pluralised.
 fn plural(count: usize, noun: &str) -> String {
@@ -211,24 +226,22 @@ fn sync_job(github: &Github, store: &Mutex<Option<Store>>) -> Msg {
         let updated = attribute(&known, &following, &followers, SystemTime::now());
         store.save_relationships(&updated)?;
 
-        let origins = updated
-            .iter()
-            .map(|entry| (entry.user_id, entry.initiator))
-            .collect();
-        Ok((store.keep_list()?, origins))
+        Ok(Recorded {
+            keep: store.keep_list()?,
+            origins: updated
+                .iter()
+                .map(|entry| (entry.user_id, entry.initiator))
+                .collect(),
+            history: store.history()?,
+            events: recent_events(&updated, EVENT_LIMIT),
+        })
     })
     .ok();
-
-    let (keep, origins) = match recorded {
-        Some((keep, origins)) => (Some(keep), origins),
-        None => (None, HashMap::new()),
-    };
 
     Msg::Synced {
         following,
         followers,
-        keep,
-        origins,
+        recorded,
     }
 }
 
@@ -275,6 +288,12 @@ pub struct GitbyeApp {
     pub(crate) synced_at: Option<Instant>,
     /// Who moved first, per account, for the origin arrow on each row.
     pub(crate) origins: HashMap<i64, Initiator>,
+    /// Every recorded sync, oldest first.
+    pub(crate) history: Vec<Snapshot>,
+    /// The most recent changes, newest first.
+    pub(crate) events: Vec<Event>,
+    /// Which view is on screen.
+    pub(crate) view: View,
     /// Which write is in flight, so its result can be described accurately.
     running: Option<Action>,
     following: Vec<User>,
@@ -320,6 +339,9 @@ impl GitbyeApp {
             toasts: Vec::new(),
             synced_at: None,
             origins: HashMap::new(),
+            history: Vec::new(),
+            events: Vec::new(),
+            view: View::Accounts,
             running: None,
             following: Vec::new(),
             followers: Vec::new(),
@@ -519,14 +541,18 @@ impl GitbyeApp {
                 Msg::Synced {
                     following,
                     followers,
-                    keep,
-                    origins,
+                    recorded,
                 } => {
-                    self.origins = origins;
+                    // An unreadable store is a single fact, so the whole value
+                    // is absent rather than each part being separately empty.
+                    self.keep_ready = recorded.is_some();
+                    let recorded = recorded.unwrap_or_default();
+                    self.origins = recorded.origins;
+                    self.history = recorded.history;
+                    self.events = recorded.events;
+                    self.keep = recorded.keep;
                     self.following = following;
                     self.followers = followers;
-                    self.keep_ready = keep.is_some();
-                    self.keep = keep.unwrap_or_default();
                     self.recompute();
                     self.busy = false;
                     self.progress = None;

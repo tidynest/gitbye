@@ -178,6 +178,111 @@ fn advance(
     next
 }
 
+/// One recorded sync, reduced to the two numbers worth plotting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Snapshot {
+    /// When the sync ran.
+    pub taken_at: SystemTime,
+    /// How many accounts you followed at that moment.
+    pub following: usize,
+    /// How many followed you.
+    pub followers: usize,
+}
+
+/// Everything one sync reads back out of the store.
+///
+/// Carried as a whole rather than as separate fields, because its absence is a
+/// single fact: the store was unreachable, so none of it is known.
+#[derive(Debug, Default)]
+pub struct Recorded {
+    /// Ids on the keep-list.
+    pub keep: Vec<i64>,
+    /// Who moved first, per account.
+    pub origins: HashMap<i64, Initiator>,
+    /// Every sync so far, oldest first.
+    pub history: Vec<Snapshot>,
+    /// The most recent changes, newest first.
+    pub events: Vec<Event>,
+}
+
+/// What happened, and to whom.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EventKind {
+    /// They started following you.
+    FollowedYou,
+    /// They stopped following you.
+    UnfollowedYou,
+    /// You started following them.
+    YouFollowed,
+}
+
+impl EventKind {
+    /// How it reads in a list, written from your side of the screen.
+    #[must_use]
+    pub fn phrase(self) -> &'static str {
+        match self {
+            Self::FollowedYou => "followed you",
+            Self::UnfollowedYou => "unfollowed you",
+            Self::YouFollowed => "you followed",
+        }
+    }
+}
+
+/// One dated change in the follow graph.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Event {
+    /// When it happened, as closely as the record can say.
+    pub at: SystemTime,
+    /// The account it happened to.
+    pub login: String,
+    /// What happened.
+    pub kind: EventKind,
+}
+
+/// Turns the relationship record into a reverse-chronological list of changes.
+///
+/// The timestamps already on each relationship are the whole history, so this
+/// reads them rather than diffing successive syncs: the same fact, recorded
+/// once, instead of recomputed from a larger table.
+///
+/// Only relationships whose beginning was observed contribute a start, since a
+/// first-sync timestamp records when the application looked, not when anything
+/// happened, and presenting it as an event would be a fiction.
+#[must_use]
+pub fn recent_events(relationships: &[Relationship], limit: usize) -> Vec<Event> {
+    let mut events: Vec<Event> = relationships
+        .iter()
+        .flat_map(|entry| {
+            let observed = entry.initiator != Initiator::Unknown;
+            [
+                (
+                    entry.they_followed_at.filter(|_| observed),
+                    EventKind::FollowedYou,
+                ),
+                (
+                    entry.i_followed_at.filter(|_| observed),
+                    EventKind::YouFollowed,
+                ),
+                // A departure is always a real event: it happened between two
+                // syncs, whatever was or was not known about the beginning.
+                (entry.they_unfollowed_at, EventKind::UnfollowedYou),
+            ]
+            .into_iter()
+            .filter_map(move |(at, kind)| {
+                at.map(|at| Event {
+                    at,
+                    login: entry.login.clone(),
+                    kind,
+                })
+            })
+        })
+        .collect();
+
+    events.sort_by(|a, b| b.at.cmp(&a.at).then_with(|| a.login.cmp(&b.login)));
+    events.truncate(limit);
+    events
+}
+
 /// Whether an automated sweep should return this follow.
 ///
 /// Every condition must hold, and any missing timestamp means no. The rule is
@@ -253,14 +358,11 @@ pub enum Msg {
         following: Vec<User>,
         /// Accounts following the user.
         followers: Vec<User>,
-        /// Ids currently on the keep-list, or `None` when the store could not be
-        /// read. `None` must keep unfollowing disabled, because an empty
-        /// keep-list and an unreadable one are indistinguishable in a set
-        /// difference, and one of those means unfollowing protected accounts.
-        keep: Option<Vec<i64>>,
-        /// Who moved first, per account. Empty when the store is unavailable,
-        /// which simply means no origin arrows are drawn.
-        origins: HashMap<i64, Initiator>,
+        /// What the store held, or `None` when it could not be read. `None` must
+        /// keep unfollowing disabled, because an empty keep-list and an
+        /// unreadable one are indistinguishable in a set difference, and one of
+        /// those means unfollowing accounts that were meant to be spared.
+        recorded: Option<Recorded>,
     },
     /// The keep-list after it was changed, so buckets can be recomputed without
     /// another round trip to GitHub.

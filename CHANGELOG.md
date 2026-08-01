@@ -5,6 +5,19 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-02
+
+### Added
+
+- History view, reached from the rail or with `5`: a plot of following and
+  followers across every recorded sync, and a reverse-chronological list of what
+  changed. Scaled to the range the data occupies rather than to zero, since a
+  zero-based axis would hide the only thing the plot is for
+- Recent changes derived from the relationship record rather than by diffing
+  syncs. A start is listed only where the beginning was observed, because a
+  first-sync timestamp records when the application looked, not when anything
+  happened. A departure always counts, since leaving happens between two syncs
+
 ## [0.3.1] - 2026-08-02
 
 ### Added
