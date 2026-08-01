@@ -1,0 +1,30 @@
+[package]
+name = "goodbye"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+description = "Compare GitHub followers against following, and unfollow the accounts that never reciprocated"
+license = "MIT"
+publish = false
+
+[dependencies]
+anyhow = "1.0.100"
+eframe = "0.32.3"
+postgres = "0.19.14"
+reqwest = { version = "0.12.24", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+serde = { version = "1.0.228", features = ["derive"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+# Module paths such as `model::User` read better than the flattened alternatives
+# pedantic would push us towards.
+module_name_repetitions = "allow"
+
+[profile.release]
+strip = true
+lto = "thin"
