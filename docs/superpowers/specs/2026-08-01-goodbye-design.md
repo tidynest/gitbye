@@ -369,6 +369,16 @@ exporting `DATABASE_URL`.
 ## Hosting
 
 Private repository, mirrored to GitHub and GitLab, matching the existing workspace
-pattern. Repository name: `goodbye`.
+pattern. Remote `origin` points at GitHub, remote `gitlab` at GitLab, both over
+SSH.
+
+- https://github.com/tidynest/goodbye
+- https://gitlab.com/tidynest/goodbye
+
+`deny.toml` carries the supply-chain policy the machine-wide pre-push gate
+enforces: a permissive licence allow-list, the Ubuntu font licence scoped to the
+single egui crate that bundles it, and one ignored advisory
+(`RUSTSEC-2026-0192`, ttf-parser unmaintained with no safe upgrade, reachable
+only through egui's font rasteriser where every font parsed is compiled in).
 
 `goodbye-backups/` is deliberately outside this repository and is not tracked.

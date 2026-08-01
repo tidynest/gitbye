@@ -108,11 +108,14 @@ cargo nextest run
 
 ## Before committing
 
-All three must be clean:
+All four must be clean:
 
 ```bash
-cargo fmt --check && cargo clippy --all-targets && cargo nextest run
+cargo fmt --check && cargo clippy --all-targets && cargo nextest run && cargo deny check
 ```
+
+Clippy runs with `pedantic` denied, so warnings are build failures by design.
+`cargo deny` reads `deny.toml`, which is also what the pre-push gate enforces.
 
 ## Backups
 
