@@ -6,11 +6,11 @@
 //! application is about.
 
 use eframe::egui::{
-    Align2, Color32, CornerRadius, FontFamily, FontId, Painter, Rect, Response, Sense, Stroke,
-    StrokeKind, Ui, Vec2, pos2, vec2,
+    Align2, Color32, CornerRadius, FontFamily, FontId, Painter, Pos2, Rect, Response, Sense, Shape,
+    Stroke, StrokeKind, Ui, Vec2, pos2, vec2,
 };
 
-use crate::model::User;
+use crate::model::{Initiator, User};
 use crate::theme;
 
 /// Height of one account row.
@@ -62,21 +62,26 @@ pub(crate) struct Reciprocity {
     pub(crate) incoming: bool,
     /// Protected from unfollowing by the keep-list.
     pub(crate) shielded: bool,
+    /// Who moved first, where that was observed.
+    pub(crate) initiator: Initiator,
 }
 
 /// Draws the reciprocity mark inside `rect`.
+///
+/// The connector carries the direction the relationship started in, as an
+/// arrowhead pointing away from whoever moved first. That keeps the origin in
+/// the same mark as the reciprocity rather than adding a second badge beside it.
 pub(crate) fn glyph(painter: &Painter, rect: Rect, mark: Reciprocity, tint: Color32) {
     let middle = rect.center().y;
     let left = pos2(rect.left() + 4.0, middle);
     let right = pos2(rect.right() - 4.0, middle);
     let radius = 3.2;
 
-    // The bar between the dots carries no meaning on its own, so it stays faint
-    // and lets the dots do the talking.
     painter.line_segment(
         [left, right],
         Stroke::new(1.2_f32, tint.gamma_multiply(0.45)),
     );
+    origin_arrow(painter, rect.center(), mark.initiator, tint);
 
     for (centre, filled) in [(left, mark.outgoing), (right, mark.incoming)] {
         if filled {
@@ -92,6 +97,42 @@ pub(crate) fn glyph(painter: &Painter, rect: Rect, mark: Reciprocity, tint: Colo
 
     if mark.shielded {
         painter.circle_stroke(left, radius + 3.4, Stroke::new(1.2_f32, theme::AMBER));
+    }
+}
+
+/// Draws the arrowhead showing which way the relationship began.
+///
+/// Nothing is drawn for an unobserved beginning, because an absent mark is the
+/// honest rendering of an absent fact.
+fn origin_arrow(painter: &Painter, centre: Pos2, initiator: Initiator, tint: Color32) {
+    let direction = match initiator {
+        Initiator::Me => 1.0_f32,
+        Initiator::Them => -1.0_f32,
+        Initiator::Unknown => return,
+    };
+
+    let length = 3.4;
+    let half = 2.6;
+    let tip = pos2(centre.x + direction * length, centre.y);
+    let back = centre.x - direction * 0.6;
+
+    painter.add(Shape::convex_polygon(
+        vec![
+            tip,
+            pos2(back, centre.y - half),
+            pos2(back, centre.y + half),
+        ],
+        tint.gamma_multiply(0.85),
+        Stroke::NONE,
+    ));
+}
+
+/// What the arrowhead means, in words, for the hover.
+fn origin_hint(initiator: Initiator) -> Option<&'static str> {
+    match initiator {
+        Initiator::Me => Some("You followed first. The scheduled sweep never touches these."),
+        Initiator::Them => Some("They followed first."),
+        Initiator::Unknown => None,
     }
 }
 
@@ -163,6 +204,10 @@ pub(crate) fn account_row(
                 theme::FAINT
             },
         );
+    }
+
+    if let Some(hint) = origin_hint(mark.initiator) {
+        response.clone().on_hover_text(hint);
     }
 
     if open.clicked() {

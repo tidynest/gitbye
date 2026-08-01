@@ -4,7 +4,7 @@
 //! The interface thread owns all state and never blocks, so there is no mutex
 //! guarding application state and no lock ordering to reason about.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -15,7 +15,7 @@ use eframe::egui::{Color32, Context};
 
 use crate::db::Store;
 use crate::github::Github;
-use crate::model::{Buckets, Msg, User, attribute, bucket};
+use crate::model::{Buckets, Initiator, Msg, User, attribute, bucket};
 use crate::{theme, ui};
 
 /// Which bucket is on screen.
@@ -202,7 +202,7 @@ fn sync_job(github: &Github, store: &Mutex<Option<Store>>) -> Msg {
 
     // A store failure is not fatal. The lists still display, and `None` keeps
     // unfollowing disabled for as long as the keep-list cannot be trusted.
-    let keep = with_store(store, |store| {
+    let recorded = with_store(store, |store| {
         store.record_sync(&following, &followers)?;
         // Attribution has to happen on every sync, whoever started it, because
         // a relationship that forms between two syncs is only ever visible as
@@ -210,14 +210,25 @@ fn sync_job(github: &Github, store: &Mutex<Option<Store>>) -> Msg {
         let known = store.relationships()?;
         let updated = attribute(&known, &following, &followers, SystemTime::now());
         store.save_relationships(&updated)?;
-        store.keep_list()
+
+        let origins = updated
+            .iter()
+            .map(|entry| (entry.user_id, entry.initiator))
+            .collect();
+        Ok((store.keep_list()?, origins))
     })
     .ok();
+
+    let (keep, origins) = match recorded {
+        Some((keep, origins)) => (Some(keep), origins),
+        None => (None, HashMap::new()),
+    };
 
     Msg::Synced {
         following,
         followers,
         keep,
+        origins,
     }
 }
 
@@ -262,6 +273,8 @@ pub struct GitbyeApp {
     pub(crate) toasts: Vec<Toast>,
     /// When the last successful sync landed, for the freshness read-out.
     pub(crate) synced_at: Option<Instant>,
+    /// Who moved first, per account, for the origin arrow on each row.
+    pub(crate) origins: HashMap<i64, Initiator>,
     /// Which write is in flight, so its result can be described accurately.
     running: Option<Action>,
     following: Vec<User>,
@@ -306,6 +319,7 @@ impl GitbyeApp {
             sheet: false,
             toasts: Vec::new(),
             synced_at: None,
+            origins: HashMap::new(),
             running: None,
             following: Vec::new(),
             followers: Vec::new(),
@@ -506,7 +520,9 @@ impl GitbyeApp {
                     following,
                     followers,
                     keep,
+                    origins,
                 } => {
+                    self.origins = origins;
                     self.following = following;
                     self.followers = followers;
                     self.keep_ready = keep.is_some();

@@ -15,7 +15,7 @@ use eframe::egui::{
 };
 
 use crate::app::{Action, GitbyeApp, Tab, Tone};
-use crate::model::User;
+use crate::model::{Initiator, User};
 use crate::theme;
 use crate::widgets::{self, ROW_HEIGHT, Reciprocity, RowAction};
 
@@ -302,7 +302,12 @@ fn field(app: &mut GitbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
                     for chunk in rows.chunks(columns) {
                         ui.columns(columns, |cells| {
                             for (index, user) in chunk.iter().enumerate() {
-                                let mark = mark_for(app.tab);
+                                let origin = app
+                                    .origins
+                                    .get(&user.id)
+                                    .copied()
+                                    .unwrap_or(Initiator::Unknown);
+                                let mark = mark_for(app.tab, origin);
                                 let selected = app.selected.contains(&user.id);
                                 let action = widgets::account_row(
                                     &mut cells[index],
@@ -328,28 +333,19 @@ fn field(app: &mut GitbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
 }
 
 /// Which relationship every row in a bucket has, by definition of the bucket.
-fn mark_for(tab: Tab) -> Reciprocity {
-    match tab {
-        Tab::Unreciprocated => Reciprocity {
-            outgoing: true,
-            incoming: false,
-            shielded: false,
-        },
-        Tab::Keeping => Reciprocity {
-            outgoing: true,
-            incoming: false,
-            shielded: true,
-        },
-        Tab::Mutuals => Reciprocity {
-            outgoing: true,
-            incoming: true,
-            shielded: false,
-        },
-        Tab::Fans => Reciprocity {
-            outgoing: false,
-            incoming: true,
-            shielded: false,
-        },
+fn mark_for(tab: Tab, initiator: Initiator) -> Reciprocity {
+    let (outgoing, incoming, shielded) = match tab {
+        Tab::Unreciprocated => (true, false, false),
+        Tab::Keeping => (true, false, true),
+        Tab::Mutuals => (true, true, false),
+        Tab::Fans => (false, true, false),
+    };
+
+    Reciprocity {
+        outgoing,
+        incoming,
+        shielded,
+        initiator,
     }
 }
 

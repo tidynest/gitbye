@@ -5,6 +5,17 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-02
+
+### Added
+
+- Origin marker on every row: an arrowhead on the connector pointing away from
+  whoever moved first, so a follow you began is visible at a glance. Nothing is
+  drawn where the beginning was never observed, since an absent mark is the
+  honest rendering of an absent fact
+- Hover text naming what the marker means, including that the scheduled sweep
+  never touches a follow you began
+
 ## [0.3.0] - 2026-08-02
 
 ### Added

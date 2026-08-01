@@ -258,6 +258,9 @@ pub enum Msg {
         /// keep-list and an unreadable one are indistinguishable in a set
         /// difference, and one of those means unfollowing protected accounts.
         keep: Option<Vec<i64>>,
+        /// Who moved first, per account. Empty when the store is unavailable,
+        /// which simply means no origin arrows are drawn.
+        origins: HashMap<i64, Initiator>,
     },
     /// The keep-list after it was changed, so buckets can be recomputed without
     /// another round trip to GitHub.
