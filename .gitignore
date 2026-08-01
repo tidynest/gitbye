@@ -1,0 +1,5 @@
+/target
+**/*.rs.bk
+
+# Local environment. Holds DATABASE_URL, never commit it.
+.env
