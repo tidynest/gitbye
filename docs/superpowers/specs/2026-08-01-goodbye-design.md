@@ -212,6 +212,29 @@ which is the list worth reviewing before a purge.
 The keep-list subtracts from the actionable bucket, so Select All on the first tab
 is safe by construction rather than by care.
 
+## Interface friction, and what earns its place
+
+Version 0.1 worked but wasted the screen and asked too much of the user. Each
+addition below is justified by a specific friction observed in use, and anything
+that could not be justified that way was left out.
+
+| Addition | Friction it removes |
+| -------- | ------------------- |
+| Search box | 58 names in one column cannot be scanned for a specific person. Without it the only way to find somebody is to scroll and read. |
+| Multi-column grid | A window 900px wide rendered a single 200px column. Two thirds of the screen carried nothing. |
+| Vertical rail with large counts | The counts are the primary reading of this application, and they were set in the same size as body text. |
+| Reciprocity glyph per row | The relationship is the whole subject, and it was conveyed only by which tab you happened to be on. |
+| Last-synced time | Nothing said whether the lists were current, so there was no way to know if a sync was needed. |
+| Keyboard control | A tiling-compositor user reaching for the mouse to switch tabs is friction the interface created. |
+| Undo on the toast | The one destructive action had confirmation but no recovery. Confirmation prevents accidents before the fact; undo repairs them after. |
+| Row hover actions | Keeping a single account required ticking it, then travelling to the action bar, for a one-account decision. |
+
+Deliberately not added: avatars (116 network fetches to decorate names that are
+already unique), sorting options (GitHub exposes no follow date, so alphabetical
+is the only meaningful order), account detail panels (the profile is one click
+away and the browser renders it better), and saved filters (nobody has asked the
+same question twice yet).
+
 ## Interface
 
 Four tabs.

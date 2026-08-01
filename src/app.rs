@@ -8,6 +8,7 @@ use std::collections::HashSet;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context as _, Result, anyhow};
 use eframe::egui::{Color32, Context};
@@ -48,10 +49,10 @@ impl Tab {
     /// Semantic colour carried by rows in this bucket.
     pub(crate) fn colour(self) -> Color32 {
         match self {
-            Self::Unreciprocated => theme::UNRECIPROCATED,
-            Self::Keeping => theme::PROTECTED,
-            Self::Mutuals => theme::RECIPROCATED,
-            Self::Fans => theme::INFORMATIONAL,
+            Self::Unreciprocated => theme::SEVER,
+            Self::Keeping => theme::SHIELD,
+            Self::Mutuals => theme::BOND,
+            Self::Fans => theme::INBOUND,
         }
     }
 
@@ -78,25 +79,76 @@ impl Action {
         }
     }
 
-    /// Label used on the confirming button and in the summary.
-    pub(crate) fn verb(self) -> &'static str {
+    /// The action in the past tense, so the option card that started it and the
+    /// toast that reports it read as one sentence rather than two vocabularies.
+    pub(crate) fn past(self) -> &'static str {
         match self {
-            Self::Follow => "Follow",
-            Self::Unfollow => "Unfollow",
+            Self::Follow => "Followed",
+            Self::Unfollow => "Unfollowed",
         }
     }
 }
 
-/// A message across the top of the window.
+/// Renders a count with its noun, pluralised.
+fn plural(count: usize, noun: &str) -> String {
+    if count == 1 {
+        format!("{count} {noun}")
+    } else {
+        format!("{count} {noun}s")
+    }
+}
+
+/// A persistent condition shown across the top of the window.
+///
+/// Distinct from a [`Toast`]: a banner describes a state that is still true, so
+/// it stays until the state changes. A toast reports an event that has already
+/// finished, so it leaves on its own.
 pub(crate) struct Banner {
     pub(crate) message: String,
     pub(crate) is_error: bool,
 }
 
-/// A pending write, awaiting confirmation.
-pub(crate) struct Confirm {
-    pub(crate) action: Action,
-    pub(crate) targets: Vec<User>,
+/// How an event went, which decides the colour a toast is drawn in.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Tone {
+    Good,
+    Bad,
+}
+
+/// How long a plain report of success stays.
+const TOAST_LIFE: Duration = Duration::from_secs(4);
+
+/// How long one carrying an offer of undo stays. Longer, because it asks for a
+/// decision: reading time, then deciding time, then reaching the button.
+const TOAST_LIFE_WITH_UNDO: Duration = Duration::from_secs(8);
+
+/// How long a failure stays. Much longer, because nobody chose to see it and it
+/// may be the only account of what went wrong.
+const TOAST_LIFE_FAILED: Duration = Duration::from_secs(20);
+
+/// A transient report of something that has finished.
+pub(crate) struct Toast {
+    pub(crate) message: String,
+    pub(crate) tone: Tone,
+    pub(crate) born: Instant,
+    /// Accounts this toast offers to restore. Present only after unfollowing.
+    pub(crate) undo: Option<Vec<User>>,
+}
+
+impl Toast {
+    /// Total time on screen, including the fades at each end.
+    pub(crate) fn life(&self) -> Duration {
+        match (self.tone, self.undo.is_some()) {
+            (Tone::Bad, _) => TOAST_LIFE_FAILED,
+            (Tone::Good, true) => TOAST_LIFE_WITH_UNDO,
+            (Tone::Good, false) => TOAST_LIFE,
+        }
+    }
+
+    /// Whether it has outlived its welcome.
+    pub(crate) fn expired(&self) -> bool {
+        self.born.elapsed() >= self.life()
+    }
 }
 
 /// How far through a batch the worker has reached.
@@ -170,12 +222,12 @@ fn sync_job(github: &Github, store: &Mutex<Option<Store>>) -> Msg {
 /// one readable summary even when a token expires midway.
 fn run_batch(github: &Github, action: Action, targets: &[User], reporter: &Reporter) -> Msg {
     let total = targets.len();
-    let mut ok = 0;
+    let mut done = Vec::new();
     let mut failed = Vec::new();
 
     for (index, user) in targets.iter().enumerate() {
         match action.apply(github, &user.login) {
-            Ok(()) => ok += 1,
+            Ok(()) => done.push(user.clone()),
             Err(error) => failed.push((user.login.clone(), format!("{error:#}"))),
         }
         reporter.send(Msg::Progress {
@@ -185,7 +237,7 @@ fn run_batch(github: &Github, action: Action, targets: &[User], reporter: &Repor
         });
     }
 
-    Msg::Finished { ok, failed }
+    Msg::Finished { done, failed }
 }
 
 /// The whole application.
@@ -194,10 +246,18 @@ pub struct GoodbyeApp {
     pub(crate) buckets: Buckets,
     pub(crate) selected: HashSet<i64>,
     pub(crate) banner: Option<Banner>,
-    pub(crate) confirm: Option<Confirm>,
     pub(crate) progress: Option<Progress>,
     pub(crate) busy: bool,
     pub(crate) keep_ready: bool,
+    /// Free-text filter applied to the visible bucket.
+    pub(crate) filter: String,
+    /// Whether the action sheet is open.
+    pub(crate) sheet: bool,
+    pub(crate) toasts: Vec<Toast>,
+    /// When the last successful sync landed, for the freshness read-out.
+    pub(crate) synced_at: Option<Instant>,
+    /// Which write is in flight, so its result can be described accurately.
+    running: Option<Action>,
     following: Vec<User>,
     followers: Vec<User>,
     keep: Vec<i64>,
@@ -233,10 +293,14 @@ impl GoodbyeApp {
             buckets: Buckets::default(),
             selected: HashSet::new(),
             banner,
-            confirm: None,
             progress: None,
             busy: false,
             keep_ready: false,
+            filter: String::new(),
+            sheet: false,
+            toasts: Vec::new(),
+            synced_at: None,
+            running: None,
             following: Vec::new(),
             followers: Vec::new(),
             keep: Vec::new(),
@@ -307,26 +371,34 @@ impl GoodbyeApp {
         });
     }
 
-    /// Raises the confirmation dialogue for a write.
-    pub(crate) fn ask(&mut self, action: Action) {
-        self.confirm = Some(Confirm {
-            action,
-            targets: self.selection(),
-        });
-    }
-
-    /// Runs the write the user confirmed.
-    pub(crate) fn run_confirmed(&mut self, ctx: &Context) {
-        let Some(confirm) = self.confirm.take() else {
+    /// Runs a write against the current selection.
+    ///
+    /// The sheet that leads here has already named the count and listed every
+    /// account, so this is the point of no return rather than another question.
+    pub(crate) fn run(&mut self, action: Action, ctx: &Context) {
+        let targets = self.selection();
+        if targets.is_empty() {
             return;
-        };
+        }
         let github = Arc::clone(&self.github);
+        self.running = Some(action);
+        self.sheet = false;
         self.spawn(ctx, move |reporter| {
-            run_batch(&github, confirm.action, &confirm.targets, reporter)
+            run_batch(&github, action, &targets, reporter)
         });
     }
 
-    /// Rows of the tab currently on screen.
+    /// Follows back the accounts a toast is offering to restore.
+    pub(crate) fn undo(&mut self, ctx: &Context, targets: Vec<User>) {
+        let github = Arc::clone(&self.github);
+        self.running = Some(Action::Follow);
+        self.toasts.clear();
+        self.spawn(ctx, move |reporter| {
+            run_batch(&github, Action::Follow, &targets, reporter)
+        });
+    }
+
+    /// Rows of the tab currently on screen, before filtering.
     pub(crate) fn rows(&self) -> &[User] {
         match self.tab {
             Tab::Unreciprocated => &self.buckets.unreciprocated,
@@ -334,6 +406,15 @@ impl GoodbyeApp {
             Tab::Mutuals => &self.buckets.mutuals,
             Tab::Fans => &self.buckets.fans,
         }
+    }
+
+    /// Rows actually on screen, once the filter has been applied.
+    pub(crate) fn visible(&self) -> Vec<&User> {
+        let needle = self.filter.trim().to_lowercase();
+        self.rows()
+            .iter()
+            .filter(|user| needle.is_empty() || user.login.to_lowercase().contains(&needle))
+            .collect()
     }
 
     /// How many rows each tab holds, for the tab bar counts.
@@ -369,27 +450,46 @@ impl GoodbyeApp {
         self.selected.clear();
     }
 
-    /// Turns a finished batch into a banner.
-    fn summarise(&mut self, action_done: usize, failed: &[(String, String)]) {
+    /// Adds a toast.
+    pub(crate) fn toast(&mut self, message: String, tone: Tone, undo: Option<Vec<User>>) {
+        self.toasts.push(Toast {
+            message,
+            tone,
+            born: Instant::now(),
+            undo,
+        });
+    }
+
+    /// Turns a finished batch into a toast, offering undo where one is possible.
+    ///
+    /// The action is named in the past tense, matching the button that started
+    /// it, so the same word follows the user through the whole flow.
+    fn summarise(&mut self, action: Option<Action>, done: &[User], failed: &[(String, String)]) {
+        let verb = action.map_or("Changed", Action::past);
+        let undo = match action {
+            // Following back is already the gentle direction, so it needs no
+            // escape hatch. Only the destructive one gets an offer of reversal.
+            Some(Action::Unfollow) if !done.is_empty() => Some(done.to_vec()),
+            _ => None,
+        };
+
         if failed.is_empty() {
-            let message = format!("Done. {action_done} succeeded.");
-            self.banner = Some(Banner {
-                message,
-                is_error: false,
-            });
+            let message = format!("{verb} {}", plural(done.len(), "account"));
+            self.toast(message, Tone::Good, undo);
             return;
         }
 
         let detail = failed
             .iter()
-            .map(|(login, reason)| format!("{login}: {reason}"))
+            .map(|(login, reason)| format!("{login} ({reason})"))
             .collect::<Vec<_>>()
-            .join("; ");
-        let message = format!("{action_done} succeeded, {} failed. {detail}", failed.len());
-        self.banner = Some(Banner {
-            message,
-            is_error: true,
-        });
+            .join(", ");
+        let message = format!(
+            "{verb} {}, {} failed: {detail}",
+            plural(done.len(), "account"),
+            failed.len()
+        );
+        self.toast(message, Tone::Bad, undo);
     }
 
     /// Applies every message the workers have queued since the last frame.
@@ -408,6 +508,7 @@ impl GoodbyeApp {
                     self.recompute();
                     self.busy = false;
                     self.progress = None;
+                    self.synced_at = Some(Instant::now());
                 }
                 Msg::KeepList(keep) => {
                     self.keep = keep;
@@ -418,8 +519,9 @@ impl GoodbyeApp {
                 Msg::Progress { done, total, login } => {
                     self.progress = Some(Progress { done, total, login });
                 }
-                Msg::Finished { ok, failed } => {
-                    self.summarise(ok, &failed);
+                Msg::Finished { done, failed } => {
+                    let action = self.running.take();
+                    self.summarise(action, &done, &failed);
                     self.progress = None;
                     // The graph has changed, so the buckets on screen are stale.
                     self.sync(ctx);
@@ -440,6 +542,14 @@ impl GoodbyeApp {
 impl eframe::App for GoodbyeApp {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.drain(ctx);
+        self.toasts.retain(|toast| !toast.expired());
+
+        // A toast on screen is animating, so the frame must keep coming even
+        // when nothing else has happened.
+        if !self.toasts.is_empty() {
+            ctx.request_repaint();
+        }
+
         ui::draw(self, ctx);
     }
 }

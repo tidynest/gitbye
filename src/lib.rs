@@ -10,3 +10,4 @@ pub mod github;
 pub mod model;
 mod theme;
 mod ui;
+pub mod widgets;

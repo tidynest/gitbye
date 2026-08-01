@@ -71,8 +71,9 @@ pub enum Msg {
     },
     /// A batch ran to completion, successes and failures together.
     Finished {
-        /// Accounts acted on successfully.
-        ok: usize,
+        /// Accounts acted on successfully. Carried in full rather than counted,
+        /// because offering to undo the batch means knowing exactly who it hit.
+        done: Vec<User>,
         /// Accounts that failed, each with the reason.
         failed: Vec<(String, String)>,
     },
