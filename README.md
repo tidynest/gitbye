@@ -41,6 +41,17 @@ gh auth refresh -h github.com -s user:follow
 Without it the application still starts and every list still works. Only the
 follow and unfollow actions fail, with a banner naming this command.
 
+Note that `gh auth token` returns `$GITHUB_TOKEN` when that variable is set,
+in preference to the token in the keyring. If you export one, that is the token
+this application receives, and the scope has to be present on it. `gh auth
+refresh` cannot add a scope to a token it does not manage, so it will appear to
+succeed while changing nothing that this application sees. Check which scopes
+the effective token carries with:
+
+```bash
+curl -sS -I -H "Authorization: Bearer $(gh auth token)" https://api.github.com/user | grep -i x-oauth-scopes
+```
+
 ### 2. Database
 
 The keep-list and the sync history live in PostgreSQL. On Arch Linux, if no
