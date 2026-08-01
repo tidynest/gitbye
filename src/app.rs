@@ -8,14 +8,14 @@ use std::collections::HashSet;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{Context as _, Result, anyhow};
 use eframe::egui::{Color32, Context};
 
 use crate::db::Store;
 use crate::github::Github;
-use crate::model::{Buckets, Msg, User, bucket};
+use crate::model::{Buckets, Msg, User, attribute, bucket};
 use crate::{theme, ui};
 
 /// Which bucket is on screen.
@@ -204,6 +204,12 @@ fn sync_job(github: &Github, store: &Mutex<Option<Store>>) -> Msg {
     // unfollowing disabled for as long as the keep-list cannot be trusted.
     let keep = with_store(store, |store| {
         store.record_sync(&following, &followers)?;
+        // Attribution has to happen on every sync, whoever started it, because
+        // a relationship that forms between two syncs is only ever visible as
+        // the difference between them.
+        let known = store.relationships()?;
+        let updated = attribute(&known, &following, &followers, SystemTime::now());
+        store.save_relationships(&updated)?;
         store.keep_list()
     })
     .ok();
@@ -241,7 +247,7 @@ fn run_batch(github: &Github, action: Action, targets: &[User], reporter: &Repor
 }
 
 /// The whole application.
-pub struct GoodbyeApp {
+pub struct GitbyeApp {
     pub(crate) tab: Tab,
     pub(crate) buckets: Buckets,
     pub(crate) selected: HashSet<i64>,
@@ -267,7 +273,7 @@ pub struct GoodbyeApp {
     rx: Receiver<Msg>,
 }
 
-impl GoodbyeApp {
+impl GitbyeApp {
     /// Builds the application, applies the palette, and starts the first sync.
     ///
     /// A database that cannot be reached is reported and survived. Only a
@@ -539,7 +545,7 @@ impl GoodbyeApp {
     }
 }
 
-impl eframe::App for GoodbyeApp {
+impl eframe::App for GitbyeApp {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.drain(ctx);
         self.toasts.retain(|toast| !toast.expired());

@@ -1,4 +1,4 @@
-# goodbye: design
+# gitbye: design
 
 Date: 2026-08-01
 Version: 0.1.0
@@ -69,7 +69,7 @@ Hard requirements, not preferences.
 
 1. Follow and unfollow endpoints are never invoked during development. They exist
    in source only, driven by explicit user action in the interface.
-2. A read-only snapshot of both lists lives at `~/RustroverProjects/goodbye-backups/`,
+2. A read-only snapshot of both lists lives at `~/RustroverProjects/gitbye-backups/`,
    outside this repository, with a documented restore procedure.
 3. If the keep-list cannot be loaded, unfollow is disabled. An empty keep-list and
    an unloadable keep-list are indistinguishable in a set difference, and one of
@@ -114,7 +114,7 @@ and a set of tick boxes.
 ### Layout
 
 ```
-goodbye/
+gitbye/
   Cargo.toml
   CHANGELOG.md
   README.md
@@ -307,15 +307,15 @@ Application side:
 
 ```rust
 egui::ViewportBuilder::default()
-    .with_app_id("goodbye")
+    .with_app_id("gitbye")
     .with_inner_size([900.0, 640.0])
 ```
 
 Compositor side, documented in the README:
 
 ```
-windowrulev2 = float, class:^(goodbye)$
-windowrulev2 = center, class:^(goodbye)$
+windowrulev2 = float, class:^(gitbye)$
+windowrulev2 = center, class:^(gitbye)$
 ```
 
 Dragging then uses the stock Hyprland binding, `SUPER` with left-drag. Rejected: an
@@ -395,8 +395,8 @@ Private repository, mirrored to GitHub and GitLab, matching the existing workspa
 pattern. Remote `origin` points at GitHub, remote `gitlab` at GitLab, both over
 SSH.
 
-- https://github.com/tidynest/goodbye
-- https://gitlab.com/tidynest/goodbye
+- https://github.com/tidynest/gitbye
+- https://gitlab.com/tidynest/gitbye
 
 `deny.toml` carries the supply-chain policy the machine-wide pre-push gate
 enforces: a permissive licence allow-list, the Ubuntu font licence scoped to the
@@ -404,4 +404,4 @@ single egui crate that bundles it, and one ignored advisory
 (`RUSTSEC-2026-0192`, ttf-parser unmaintained with no safe upgrade, reachable
 only through egui's font rasteriser where every font parsed is compiled in).
 
-`goodbye-backups/` is deliberately outside this repository and is not tracked.
+`gitbye-backups/` is deliberately outside this repository and is not tracked.

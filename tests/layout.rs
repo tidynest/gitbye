@@ -3,7 +3,7 @@
 //! The grid is the reason the window stopped wasting two thirds of its width,
 //! so the rule that decides how many columns fit is worth pinning down.
 
-use goodbye::widgets::{MAX_COLUMNS, MIN_COLUMN, column_count};
+use gitbye::widgets::{MAX_COLUMNS, MIN_COLUMN, column_count};
 
 /// Matches the gap egui leaves between items by default.
 const GAP: f32 = 8.0;

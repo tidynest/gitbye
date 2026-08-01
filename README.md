@@ -1,4 +1,4 @@
-# goodbye
+# gitbye
 
 A desktop application that compares the GitHub accounts you follow against the
 accounts following you, then lets you unfollow the ones that never reciprocated.
@@ -74,11 +74,11 @@ sudo -iu postgres createuser --superuser "$USER"
 Create the database and point the application at it:
 
 ```bash
-createdb goodbye
+createdb gitbye
 ```
 
 ```bash
-export DATABASE_URL="postgresql:///goodbye"
+export DATABASE_URL="postgresql:///gitbye"
 ```
 
 That connection string uses the local unix socket and peer authentication, so no
@@ -103,8 +103,8 @@ A Wayland client cannot position its own window, so placement belongs to the
 compositor. Add these to `~/.config/hypr/hyprland.conf`:
 
 ```
-windowrulev2 = float, class:^(goodbye)$
-windowrulev2 = center, class:^(goodbye)$
+windowrulev2 = float, class:^(gitbye)$
+windowrulev2 = center, class:^(gitbye)$
 ```
 
 The window then opens floating and centred, and drags with the stock `SUPER`
@@ -135,7 +135,7 @@ Clippy runs with `pedantic` denied, so warnings are build failures by design.
 
 ## Backups
 
-Read-only snapshots of the follow graph live in `../goodbye-backups/`,
+Read-only snapshots of the follow graph live in `../gitbye-backups/`,
 deliberately outside this repository so that resetting or re-cloning it cannot
 destroy the safety net. That directory documents how to take a fresh snapshot and
 how to restore from one.

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Gitbye">
+  <title>Gitbye</title>
+  <!-- The application's own reciprocity mark: the left dot is you, the right is
+       them. Filled follows, hollow does not. The icon shows the case the app
+       exists for, a follow that was never returned. -->
+  <rect width="64" height="64" rx="14" fill="#1C1A24"/>
+  <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="13.25" fill="none" stroke="#37324A" stroke-width="1.5"/>
+  <line x1="19" y1="32" x2="45" y2="32" stroke="#E8705A" stroke-width="2.4" stroke-opacity="0.45" stroke-linecap="round"/>
+  <circle cx="19" cy="32" r="7" fill="#E8705A"/>
+  <circle cx="45" cy="32" r="6" fill="none" stroke="#E8705A" stroke-width="2.6" stroke-opacity="0.75"/>
+</svg>

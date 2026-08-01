@@ -34,6 +34,29 @@ pub enum Initiator {
     Unknown,
 }
 
+impl Initiator {
+    /// How it is stored.
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Them => "them",
+            Self::Me => "me",
+            Self::Unknown => "unknown",
+        }
+    }
+
+    /// Reads it back. Anything unrecognised becomes [`Initiator::Unknown`],
+    /// which is the safe direction: unknown is never swept.
+    #[must_use]
+    pub fn from_label(label: &str) -> Self {
+        match label {
+            "them" => Self::Them,
+            "me" => Self::Me,
+            _ => Self::Unknown,
+        }
+    }
+}
+
 /// What is known about one account's history with you.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Relationship {

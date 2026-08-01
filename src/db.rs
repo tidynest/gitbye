@@ -4,12 +4,13 @@
 //! so protection survives an account rename.
 
 use std::env;
+use std::time::SystemTime;
 
 use anyhow::{Context, Result, anyhow};
 use postgres::types::ToSql;
 use postgres::{Client, Config, NoTls, Transaction};
 
-use crate::model::User;
+use crate::model::{Initiator, Relationship, User};
 
 /// Environment variable holding the connection string.
 pub const URL_VAR: &str = "DATABASE_URL";
@@ -19,7 +20,7 @@ const SOCKET_DIR: &str = "/run/postgresql";
 
 /// Parses a connection string, defaulting to the local socket when it names no host.
 ///
-/// `psql` reads `postgresql:///goodbye` as "connect over the local socket", but
+/// `psql` reads `postgresql:///gitbye` as "connect over the local socket", but
 /// that fallback lives in libpq, not in this driver, which instead refuses with
 /// "both host and hostaddr are missing". Since the short form is the natural one
 /// to write, it is honoured here rather than documented as a trap.
@@ -51,6 +52,15 @@ const SCHEMA: &str = "
     CREATE TABLE IF NOT EXISTS sync_run (
         id       BIGSERIAL   PRIMARY KEY,
         taken_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS relationship (
+        user_id            BIGINT PRIMARY KEY,
+        login              TEXT NOT NULL,
+        initiator          TEXT NOT NULL CHECK (initiator IN ('them', 'me', 'unknown')),
+        they_followed_at   TIMESTAMPTZ,
+        i_followed_at      TIMESTAMPTZ,
+        they_unfollowed_at TIMESTAMPTZ
     );
 
     CREATE TABLE IF NOT EXISTS sync_member (
@@ -157,6 +167,84 @@ impl Store {
                 &[&ids],
             )
             .context("could not remove from the keep-list")?;
+
+        Ok(())
+    }
+
+    /// Everything known about who moved first, and when.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the query cannot be executed.
+    pub fn relationships(&mut self) -> Result<Vec<Relationship>> {
+        let rows = self
+            .client
+            .query(
+                "SELECT user_id, login, initiator, they_followed_at, i_followed_at,
+                        they_unfollowed_at
+                 FROM relationship",
+                &[],
+            )
+            .context("could not read the relationship history")?;
+
+        Ok(rows
+            .iter()
+            .map(|row| Relationship {
+                user_id: row.get(0),
+                login: row.get(1),
+                initiator: Initiator::from_label(row.get(2)),
+                they_followed_at: row.get(3),
+                i_followed_at: row.get(4),
+                they_unfollowed_at: row.get(5),
+            })
+            .collect())
+    }
+
+    /// Writes the updated history back, in one statement.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the statement cannot be executed.
+    pub fn save_relationships(&mut self, updated: &[Relationship]) -> Result<()> {
+        if updated.is_empty() {
+            return Ok(());
+        }
+
+        let ids: Vec<i64> = updated.iter().map(|entry| entry.user_id).collect();
+        let logins: Vec<String> = updated.iter().map(|entry| entry.login.clone()).collect();
+        let initiators: Vec<String> = updated
+            .iter()
+            .map(|entry| entry.initiator.label().to_owned())
+            .collect();
+        let followed: Vec<Option<SystemTime>> =
+            updated.iter().map(|entry| entry.they_followed_at).collect();
+        let returned: Vec<Option<SystemTime>> =
+            updated.iter().map(|entry| entry.i_followed_at).collect();
+        let left: Vec<Option<SystemTime>> = updated
+            .iter()
+            .map(|entry| entry.they_unfollowed_at)
+            .collect();
+
+        let params: [&(dyn ToSql + Sync); 6] =
+            [&ids, &logins, &initiators, &followed, &returned, &left];
+
+        self.client
+            .execute(
+                "INSERT INTO relationship
+                     (user_id, login, initiator, they_followed_at, i_followed_at,
+                      they_unfollowed_at)
+                 SELECT * FROM UNNEST($1::BIGINT[], $2::TEXT[], $3::TEXT[],
+                                      $4::TIMESTAMPTZ[], $5::TIMESTAMPTZ[],
+                                      $6::TIMESTAMPTZ[])
+                 ON CONFLICT (user_id) DO UPDATE SET
+                     login              = EXCLUDED.login,
+                     initiator          = EXCLUDED.initiator,
+                     they_followed_at   = EXCLUDED.they_followed_at,
+                     i_followed_at      = EXCLUDED.i_followed_at,
+                     they_unfollowed_at = EXCLUDED.they_unfollowed_at",
+                &params,
+            )
+            .context("could not write the relationship history")?;
 
         Ok(())
     }

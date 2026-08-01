@@ -38,7 +38,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- Connection strings that name no host, such as `postgresql:///goodbye`, now
+- Connection strings that name no host, such as `postgresql:///gitbye`, now
   fall back to the local socket. `psql` applies that fallback in libpq, but the
   driver does not, and refused with "both host and hostaddr are missing". The
   short form is the natural one to write, so it is now honoured.

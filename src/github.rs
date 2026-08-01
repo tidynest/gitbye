@@ -22,7 +22,7 @@ const PER_PAGE: usize = 100;
 const MAX_PAGES: usize = 100;
 
 /// Sent as the User-Agent, which GitHub requires on every request.
-const AGENT: &str = concat!("goodbye/", env!("CARGO_PKG_VERSION"));
+const AGENT: &str = concat!("gitbye/", env!("CARGO_PKG_VERSION"));
 
 /// The command that grants the scope needed to follow and unfollow.
 pub const SCOPE_FIX: &str = "gh auth refresh -h github.com -s user:follow";

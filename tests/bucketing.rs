@@ -4,7 +4,7 @@
 //! keep-list ever appear in the bucket that unfollowing acts upon? Several of the
 //! cases below exist purely to answer that with no.
 
-use goodbye::model::{User, bucket};
+use gitbye::model::{User, bucket};
 
 fn user(id: i64, login: &str) -> User {
     User {

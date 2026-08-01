@@ -3,11 +3,11 @@
 //! These parse only. Nothing here opens a connection, so the suite still runs
 //! with no database present.
 
-use goodbye::db::connection_config;
+use gitbye::db::connection_config;
 
 #[test]
 fn a_url_without_a_host_falls_back_to_the_local_socket() {
-    let config = connection_config("postgresql:///goodbye").expect("valid connection string");
+    let config = connection_config("postgresql:///gitbye").expect("valid connection string");
 
     assert!(
         !config.get_hosts().is_empty(),
@@ -22,7 +22,7 @@ fn a_url_without_a_host_falls_back_to_the_local_socket() {
 #[test]
 fn an_explicit_host_is_left_alone() {
     let config =
-        connection_config("postgresql://db.example.com/goodbye").expect("valid connection string");
+        connection_config("postgresql://db.example.com/gitbye").expect("valid connection string");
 
     let rendered = format!("{config:?}");
     assert!(

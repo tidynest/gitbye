@@ -7,7 +7,7 @@
 use std::collections::HashSet;
 use std::time::{Duration, SystemTime};
 
-use goodbye::model::{GRACE, Initiator, Relationship, should_sweep};
+use gitbye::model::{GRACE, Initiator, Relationship, should_sweep};
 
 /// A fixed origin, so no test depends on the wall clock.
 fn origin() -> SystemTime {

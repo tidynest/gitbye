@@ -8,6 +8,7 @@ pub mod app;
 pub mod db;
 pub mod github;
 pub mod model;
+pub mod sweep;
 mod theme;
 mod ui;
 pub mod widgets;

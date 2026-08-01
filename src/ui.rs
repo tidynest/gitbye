@@ -14,7 +14,7 @@ use eframe::egui::{
     TopBottomPanel, Ui, UiBuilder, Vec2, pos2, vec2,
 };
 
-use crate::app::{Action, GoodbyeApp, Tab, Tone};
+use crate::app::{Action, GitbyeApp, Tab, Tone};
 use crate::model::User;
 use crate::theme;
 use crate::widgets::{self, ROW_HEIGHT, Reciprocity, RowAction};
@@ -64,7 +64,7 @@ fn strong(text: impl Into<String>, size: f32, colour: Color32) -> RichText {
 }
 
 /// Draws one frame and applies whatever the user asked for.
-pub(crate) fn draw(app: &mut GoodbyeApp, ctx: &Context) {
+pub(crate) fn draw(app: &mut GitbyeApp, ctx: &Context) {
     let mut intent = None;
 
     shortcuts(app, ctx, &mut intent);
@@ -82,7 +82,7 @@ pub(crate) fn draw(app: &mut GoodbyeApp, ctx: &Context) {
 ///
 /// Single-key shortcuts are suppressed while a text field has focus, otherwise
 /// typing a name into the filter would trip half of them.
-fn shortcuts(app: &GoodbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
+fn shortcuts(app: &GitbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
     let typing = ctx.wants_keyboard_input();
 
     let (escape, find, all, digits, refresh, enter) = ctx.input(|i| {
@@ -132,14 +132,14 @@ fn shortcuts(app: &GoodbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
 }
 
 /// Title, filter, freshness and the sync control.
-fn chrome(app: &mut GoodbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
+fn chrome(app: &mut GitbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
     let frame = Frame::new()
         .fill(theme::BASE)
         .inner_margin(Margin::symmetric(18, 14));
 
     TopBottomPanel::top("chrome").frame(frame).show(ctx, |ui| {
         ui.horizontal(|ui| {
-            ui.label(strong("goodbye", 19.0, theme::TEXT));
+            ui.label(strong("gitbye", 19.0, theme::TEXT));
             ui.add_space(14.0);
 
             let field = TextEdit::singleline(&mut app.filter)
@@ -174,7 +174,7 @@ fn chrome(app: &mut GoodbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
 }
 
 /// How long ago the lists were refreshed, in words.
-fn freshness(app: &GoodbyeApp) -> String {
+fn freshness(app: &GitbyeApp) -> String {
     let Some(at) = app.synced_at else {
         return if app.busy {
             "syncing".to_owned()
@@ -209,7 +209,7 @@ fn banner_strip(ui: &mut Ui, message: &str, is_error: bool) {
 ///
 /// The count is the largest thing in the window because it is the reading the
 /// application exists to give. The label underneath names it.
-fn rail(app: &GoodbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
+fn rail(app: &GitbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
     let frame = Frame::new()
         .fill(theme::SURFACE)
         .inner_margin(Margin::symmetric(12, 14));
@@ -276,7 +276,7 @@ fn rail_entry(ui: &mut Ui, tab: Tab, count: usize, active: bool) -> bool {
 }
 
 /// The account field: a responsive grid of rows.
-fn field(app: &mut GoodbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
+fn field(app: &mut GitbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
     let frame = Frame::new()
         .fill(theme::BASE)
         .inner_margin(Margin::symmetric(14, 12));
@@ -355,7 +355,7 @@ fn mark_for(tab: Tab) -> Reciprocity {
 
 /// What an empty field says. A filter that matches nothing is a different
 /// situation from a bucket that is genuinely empty, and it gets a different line.
-fn empty_state(ui: &mut Ui, app: &GoodbyeApp) {
+fn empty_state(ui: &mut Ui, app: &GitbyeApp) {
     ui.add_space(48.0);
     ui.vertical_centered(|ui| {
         let filtered = !app.filter.trim().is_empty() && !app.rows().is_empty();
@@ -380,7 +380,7 @@ fn empty_state(ui: &mut Ui, app: &GoodbyeApp) {
 }
 
 /// The bar: what is selected, and the one way forward.
-fn action_bar(app: &GoodbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
+fn action_bar(app: &GitbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
     if !app.tab.selectable() {
         return;
     }
@@ -418,7 +418,7 @@ fn action_bar(app: &GoodbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
 }
 
 /// Selection count, with the controls that change it.
-fn selection_summary(ui: &mut Ui, app: &GoodbyeApp, intent: &mut Option<Intent>) {
+fn selection_summary(ui: &mut Ui, app: &GitbyeApp, intent: &mut Option<Intent>) {
     let count = app.selected.len();
     let visible = app.visible().len();
 
@@ -482,7 +482,7 @@ fn proceed_button(ui: &mut Ui, count: usize, enabled: bool) -> bool {
 /// This is the confirmation as well as the menu: it names the count, lists every
 /// account by hand, and only then offers the choices. Splitting those into two
 /// dialogues would ask twice and inform once.
-fn sheet(app: &GoodbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
+fn sheet(app: &GitbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
     if !app.sheet {
         return;
     }
@@ -574,7 +574,7 @@ enum SheetAction {
 
 impl SheetOption {
     /// Whether this choice can be taken right now.
-    fn enabled(&self, app: &GoodbyeApp) -> bool {
+    fn enabled(&self, app: &GitbyeApp) -> bool {
         match self.action {
             SheetAction::Unfollow => app.can_write(Action::Unfollow),
             SheetAction::Follow => app.can_write(Action::Follow),
@@ -630,7 +630,7 @@ fn sheet_options(tab: Tab) -> Vec<SheetOption> {
 ///
 /// They fade in quickly and out slowly: arrival should be noticed, departure
 /// should not demand attention a second time.
-fn toasts(app: &GoodbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
+fn toasts(app: &GitbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
     if app.toasts.is_empty() {
         return;
     }
@@ -723,7 +723,7 @@ fn toast_card(ui: &mut Ui, toast: &crate::app::Toast, index: usize, intent: &mut
 }
 
 /// Carries out whatever the frame recorded.
-fn apply(app: &mut GoodbyeApp, ctx: &Context, intent: Option<Intent>) {
+fn apply(app: &mut GitbyeApp, ctx: &Context, intent: Option<Intent>) {
     let Some(intent) = intent else {
         return;
     };

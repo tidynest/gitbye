@@ -5,7 +5,7 @@
 
 use std::time::{Duration, SystemTime};
 
-use goodbye::model::{Initiator, Relationship, User, attribute};
+use gitbye::model::{Initiator, Relationship, User, attribute};
 
 fn origin() -> SystemTime {
     SystemTime::UNIX_EPOCH + Duration::from_secs(1_800_000_000)
