@@ -4,9 +4,172 @@
 //! plain value or a pure function, which is what makes the bucketing testable
 //! without a network or a database.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::hash::BuildHasher;
+use std::time::{Duration, SystemTime};
 
 use serde::Deserialize;
+
+/// How long a new follower has to keep following before their follow is treated
+/// as sincere.
+///
+/// Unfollow inside this window having been followed back, and the follow is
+/// returned. Stay past it and the follow is kept even if they later leave.
+///
+pub const GRACE: Duration = Duration::from_secs(10 * 7 * 24 * 60 * 60);
+
+/// Who moved first.
+///
+/// This is the whole basis of the automation, which is why it is recorded
+/// rather than inferred: a follow you began is your decision and is never
+/// undone automatically, while a follow you returned is contingent on theirs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Initiator {
+    /// They followed first and you returned it.
+    Them,
+    /// You followed first.
+    Me,
+    /// The relationship predates this application, so nothing can be claimed
+    /// about it. Never eligible for automation.
+    Unknown,
+}
+
+/// What is known about one account's history with you.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Relationship {
+    /// Immutable GitHub account id.
+    pub user_id: i64,
+    /// Current account name.
+    pub login: String,
+    /// Who moved first.
+    pub initiator: Initiator,
+    /// When they were first observed following you.
+    pub they_followed_at: Option<SystemTime>,
+    /// When you were first observed following them.
+    pub i_followed_at: Option<SystemTime>,
+    /// When they were first observed to have stopped following you.
+    pub they_unfollowed_at: Option<SystemTime>,
+}
+
+/// Updates what is known about every account, from one fresh observation.
+///
+/// Attribution is only ever recorded, never inferred after the fact. An account
+/// already reciprocal the first time it is seen stays [`Initiator::Unknown`]
+/// forever, because the order genuinely is not knowable from that point on.
+#[must_use]
+pub fn attribute(
+    stored: &[Relationship],
+    following: &[User],
+    followers: &[User],
+    now: SystemTime,
+) -> Vec<Relationship> {
+    let outgoing_ids: HashSet<i64> = following.iter().map(|user| user.id).collect();
+    let incoming_ids: HashSet<i64> = followers.iter().map(|user| user.id).collect();
+    let known: HashMap<i64, &Relationship> = stored
+        .iter()
+        .map(|relationship| (relationship.user_id, relationship))
+        .collect();
+
+    let mut seen = HashSet::new();
+    let mut updated = Vec::new();
+
+    for user in following.iter().chain(followers) {
+        if !seen.insert(user.id) {
+            continue;
+        }
+        let outgoing = outgoing_ids.contains(&user.id);
+        let incoming = incoming_ids.contains(&user.id);
+
+        updated.push(match known.get(&user.id) {
+            Some(existing) => advance(existing, user, outgoing, incoming, now),
+            None => begin(user, outgoing, incoming, now),
+        });
+    }
+
+    updated
+}
+
+/// First sighting of an account.
+fn begin(user: &User, outgoing: bool, incoming: bool, now: SystemTime) -> Relationship {
+    let initiator = match (outgoing, incoming) {
+        // Already mutual when first seen, so the order is lost to history.
+        (true, true) | (false, false) => Initiator::Unknown,
+        (true, false) => Initiator::Me,
+        (false, true) => Initiator::Them,
+    };
+
+    Relationship {
+        user_id: user.id,
+        login: user.login.clone(),
+        initiator,
+        they_followed_at: incoming.then_some(now),
+        i_followed_at: outgoing.then_some(now),
+        they_unfollowed_at: None,
+    }
+}
+
+/// A later sighting of an account already on record.
+fn advance(
+    existing: &Relationship,
+    user: &User,
+    outgoing: bool,
+    incoming: bool,
+    now: SystemTime,
+) -> Relationship {
+    let mut next = existing.clone();
+    // Logins change; the record follows the account, not the name.
+    next.login.clone_from(&user.login);
+
+    if incoming && next.they_followed_at.is_none() {
+        next.they_followed_at = Some(now);
+    }
+    if outgoing && next.i_followed_at.is_none() {
+        next.i_followed_at = Some(now);
+    }
+    // Coming back starts a fresh window rather than resuming the old one, so a
+    // follow, unfollow, refollow cycle cannot be used to run down the clock.
+    if incoming && next.they_unfollowed_at.is_some() {
+        next.they_followed_at = Some(now);
+        next.they_unfollowed_at = None;
+    }
+    if !incoming && next.they_followed_at.is_some() && next.they_unfollowed_at.is_none() {
+        next.they_unfollowed_at = Some(now);
+    }
+
+    next
+}
+
+/// Whether an automated sweep should return this follow.
+///
+/// Every condition must hold, and any missing timestamp means no. The rule is
+/// deliberately conservative: it acts only where the application watched the
+/// whole relationship happen.
+///
+/// `kept` is the keep-list, which overrides everything.
+#[must_use]
+pub fn should_sweep<S: BuildHasher>(relationship: &Relationship, kept: &HashSet<i64, S>) -> bool {
+    // The keep-list outranks everything, automation included.
+    if kept.contains(&relationship.user_id) {
+        return false;
+    }
+
+    // Only a follow you returned can be withdrawn automatically, and only where
+    // the application itself watched who moved first.
+    if relationship.initiator != Initiator::Them || relationship.i_followed_at.is_none() {
+        return false;
+    }
+
+    let (Some(started), Some(ended)) = (
+        relationship.they_followed_at,
+        relationship.they_unfollowed_at,
+    ) else {
+        return false;
+    };
+
+    // `duration_since` fails when the end precedes the start. That is corrupt
+    // data rather than an extremely short window, so it refuses.
+    ended.duration_since(started).is_ok_and(|held| held < GRACE)
+}
 
 /// A GitHub account.
 ///

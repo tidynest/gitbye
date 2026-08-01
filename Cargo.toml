@@ -24,6 +24,9 @@ pedantic = { level = "deny", priority = -1 }
 # Module paths such as `model::User` read better than the flattened alternatives
 # pedantic would push us towards.
 module_name_repetitions = "allow"
+# Suggests Duration::from_weeks and from_days, both of which are still
+# nightly-only, so the lint has no fix available on stable.
+duration_suboptimal_units = "allow"
 
 [profile.release]
 strip = true
