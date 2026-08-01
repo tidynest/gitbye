@@ -323,7 +323,6 @@ fn field(app: &mut GitbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
             }
 
             let tint = app.tab.colour();
-            let selectable = app.tab.selectable();
             let gap = ui.spacing().item_spacing.x;
             let columns = widgets::column_count(ui.available_width(), gap);
 
@@ -347,7 +346,6 @@ fn field(app: &mut GitbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
                                     tint,
                                     mark,
                                     selected,
-                                    selectable,
                                 );
                                 match action {
                                     RowAction::Toggle => *intent = Some(Intent::Toggle(user.id)),
@@ -409,7 +407,7 @@ fn empty_state(ui: &mut Ui, app: &GitbyeApp) {
 
 /// The bar: what is selected, and the one way forward.
 fn action_bar(app: &GitbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
-    if app.view != View::Accounts || !app.tab.selectable() {
+    if app.view != View::Accounts {
         return;
     }
 
@@ -638,19 +636,45 @@ fn sheet_options(tab: Tab) -> Vec<SheetOption> {
                 action: SheetAction::Keep,
             },
         ],
-        Tab::Keeping => vec![SheetOption {
-            title: "Stop keeping",
-            detail: "Drop the shield and return them to the unfollow list.",
-            tint: theme::SEVER,
-            action: SheetAction::Unkeep,
-        }],
+        Tab::Keeping => vec![
+            SheetOption {
+                title: "Stop keeping",
+                detail: "Drop the shield and return them to the unfollow list.",
+                tint: theme::SHIELD,
+                action: SheetAction::Unkeep,
+            },
+            // Shielded from the sweep, not from you. Deciding to part with
+            // somebody you had spared should not need two trips.
+            SheetOption {
+                title: "Unfollow",
+                detail: "Part with them now, despite the shield.",
+                tint: theme::SEVER,
+                action: SheetAction::Unfollow,
+            },
+        ],
         Tab::Fans => vec![SheetOption {
             title: "Follow back",
             detail: "Return the follow, making it mutual.",
             tint: theme::INBOUND,
             action: SheetAction::Follow,
         }],
-        Tab::Mutuals => Vec::new(),
+        // A mutual can be unfollowed like anyone else. Keeping one is not
+        // pointless either: the shield lies dormant while they reciprocate and
+        // takes effect the moment they stop.
+        Tab::Mutuals => vec![
+            SheetOption {
+                title: "Unfollow",
+                detail: "Stop following them, even though they follow you.",
+                tint: theme::SEVER,
+                action: SheetAction::Unfollow,
+            },
+            SheetOption {
+                title: "Keep",
+                detail: "Shield them now, so they are spared if they ever stop.",
+                tint: theme::SHIELD,
+                action: SheetAction::Keep,
+            },
+        ],
     }
 }
 

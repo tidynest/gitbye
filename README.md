@@ -11,10 +11,13 @@ time.
 
 | Tab | Contents | Actions |
 | --- | -------- | ------- |
-| Not following back | followed, does not follow back, not on the keep-list | Unfollow selected, Keep selected |
-| Keeping | followed, does not follow back, on the keep-list | Stop keeping |
-| Mutuals | followed, follows back | read only |
-| Fans | follows you, not followed by you | Follow selected |
+| Not following back | followed, does not follow back, not on the keep-list | Unfollow, Keep |
+| Keeping | followed, does not follow back, on the keep-list | Stop keeping, Unfollow |
+| Mutuals | followed, follows back | Unfollow, Keep |
+| Fans | follows you, not followed by you | Follow back |
+
+Every bucket you follow from offers Unfollow. The keep-list shields an account
+from the scheduled sweep, never from you.
 
 The keep-list is subtracted from the first tab, so Select All there is safe by
 construction rather than by care.

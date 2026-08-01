@@ -67,11 +67,6 @@ impl Tab {
             Self::Fans => theme::INBOUND,
         }
     }
-
-    /// Whether rows here can be ticked. Mutuals are the one read-only bucket.
-    pub(crate) fn selectable(self) -> bool {
-        !matches!(self, Self::Mutuals)
-    }
 }
 
 /// Which write a batch performs. Both directions share one runner, so the

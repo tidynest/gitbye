@@ -5,6 +5,22 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-08-02
+
+### Fixed
+
+- Mutuals was read-only, so an account that followed you back could not be
+  unfollowed without first losing that status. Every bucket you follow from now
+  offers Unfollow
+- Keeping offered only Stop keeping, so parting with a shielded account took two
+  trips. It now offers Unfollow directly. The keep-list shields an account from
+  the scheduled sweep, never from you
+
+### Added
+
+- Keep is available on Mutuals, shielding an account while they still
+  reciprocate so they are spared automatically if they ever stop
+
 ## [0.5.0] - 2026-08-02
 
 ### Changed

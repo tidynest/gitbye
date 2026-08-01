@@ -217,7 +217,6 @@ pub(crate) fn account_row(
     tint: Color32,
     mark: Reciprocity,
     selected: bool,
-    selectable: bool,
 ) -> RowAction {
     let width = ui.available_width();
     let (rect, response) = ui.allocate_exact_size(vec2(width, ROW_HEIGHT), Sense::click());
@@ -232,7 +231,7 @@ pub(crate) fn account_row(
     );
     let open = ui.interact(open_rect, response.id.with("open"), Sense::click());
 
-    paint_row_background(ui.painter(), rect, tint, selected, hovered, selectable);
+    paint_row_background(ui.painter(), rect, tint, selected, hovered);
 
     let painter = ui.painter();
     glyph(
@@ -276,13 +275,7 @@ pub(crate) fn account_row(
         return RowAction::Open;
     }
     if response.clicked() {
-        // Read-only buckets have nothing to select, so a click there is a
-        // request to look at the account rather than to act on it.
-        return if selectable {
-            RowAction::Toggle
-        } else {
-            RowAction::Open
-        };
+        return RowAction::Toggle;
     }
     RowAction::Idle
 }
@@ -294,7 +287,6 @@ fn paint_row_background(
     tint: Color32,
     selected: bool,
     hovered: bool,
-    selectable: bool,
 ) {
     let radius = CornerRadius::same(theme::RADIUS);
     let fill = match (selected, hovered) {
@@ -321,7 +313,7 @@ fn paint_row_background(
         return;
     }
 
-    if hovered && selectable {
+    if hovered {
         painter.rect_stroke(
             rect,
             radius,
