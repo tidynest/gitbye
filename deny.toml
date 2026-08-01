@@ -1,0 +1,44 @@
+[advisories]
+ignore = [
+    { id = "RUSTSEC-2026-0192", reason = "ttf-parser unmaintained, no safe upgrade published. Reached only through egui's font rasteriser (eframe -> egui -> epaint -> ab_glyph -> owned_ttf_parser). The only fonts it ever parses are the ones egui bundles at compile time, so no untrusted input reaches it and there is no first-party usage" },
+]
+
+[licenses]
+# Permissive licences only. A new transitive dependency carrying anything else
+# should fail the gate rather than pass unnoticed.
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0",
+    "OFL-1.1",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+confidence-threshold = 0.8
+
+# Scoped to the one crate that needs it, rather than allowed everywhere. egui
+# bundles the Ubuntu font, whose licence permits redistribution but is not a
+# general-purpose software licence and should not silently cover anything else.
+exceptions = [
+    { crate = "epaint_default_fonts", allow = ["Ubuntu-font-1.0"] },
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
