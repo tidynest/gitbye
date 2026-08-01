@@ -5,6 +5,27 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-02
+
+### Added
+
+- Unattended sweep: `gitbye --sweep` runs the rule once and exits, `--dry-run`
+  reports what it would do without touching GitHub. systemd units ship in
+  `assets/systemd/`, defaulting to a dry run so enabling the timer arms a report
+  rather than an unfollow
+- Relationship history recording who moved first, updated on every sync. A
+  relationship already mutual when first seen stays unknown permanently and is
+  never eligible for automation, because the order is not recoverable after
+  the fact
+- Desktop entry and icon, so the application appears in the launcher
+- `--help`
+
+### Changed
+
+- Renamed to Gitbye. The binary, the Wayland app id and the database are all
+  `gitbye` now, so a compositor rule matching the old class needs updating, as
+  does `DATABASE_URL`
+
 ## [0.2.0] - 2026-08-02
 
 ### Added

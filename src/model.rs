@@ -105,6 +105,10 @@ pub fn attribute(
 
         updated.push(match known.get(&user.id) {
             Some(existing) => advance(existing, user, outgoing, incoming, now),
+            // On the very first sync nothing was observed, it was merely found.
+            // Attributing then would be a guess dressed as a record, so the
+            // whole opening graph is unknown and permanently exempt.
+            None if stored.is_empty() => found(user, outgoing, incoming, now),
             None => begin(user, outgoing, incoming, now),
         });
     }
@@ -112,7 +116,19 @@ pub fn attribute(
     updated
 }
 
-/// First sighting of an account.
+/// An account that was already there when the record began.
+///
+/// The timestamps are still filled in, because they are the earliest the
+/// application can honestly claim to have seen the state. The attribution is
+/// not, because there is nothing to base it on.
+fn found(user: &User, outgoing: bool, incoming: bool, now: SystemTime) -> Relationship {
+    Relationship {
+        initiator: Initiator::Unknown,
+        ..begin(user, outgoing, incoming, now)
+    }
+}
+
+/// First sighting of an account that appeared after the record began.
 fn begin(user: &User, outgoing: bool, incoming: bool, now: SystemTime) -> Relationship {
     let initiator = match (outgoing, incoming) {
         // Already mutual when first seen, so the order is lost to history.

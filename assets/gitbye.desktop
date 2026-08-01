@@ -6,7 +6,7 @@ Comment=Compare who you follow against who follows you back, and part with the r
 Exec=gitbye
 Icon=gitbye
 Terminal=false
-Categories=Network;Utility;
+Categories=Network;
 Keywords=github;followers;following;unfollow;social;
 # Must match the Wayland app id set in main.rs, or the compositor cannot pair
 # the window with this entry and the icon falls back to a generic one.

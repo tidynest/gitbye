@@ -22,16 +22,49 @@ fn user(id: i64, login: &str) -> User {
     }
 }
 
+/// An account already on record, unrelated to any test's subject.
+///
+/// Its only job is to make the record non-empty, so a newly seen account counts
+/// as having been watched to appear rather than merely found on the first sync.
+/// It never appears in the following or follower lists, so it never comes back
+/// in the results.
+fn established() -> Vec<Relationship> {
+    vec![Relationship {
+        user_id: 999,
+        login: "already-known".to_owned(),
+        initiator: Initiator::Unknown,
+        they_followed_at: Some(origin()),
+        i_followed_at: None,
+        they_unfollowed_at: None,
+    }]
+}
+
 fn only(updated: Vec<Relationship>) -> Relationship {
     assert_eq!(updated.len(), 1, "expected exactly one account on record");
     updated.into_iter().next().expect("one account")
 }
 
 #[test]
+fn the_opening_graph_is_entirely_unknown() {
+    let following = [user(1, "one-sided"), user(2, "mutual")];
+    let followers = [user(2, "mutual"), user(3, "fan")];
+
+    let updated = attribute(&[], &following, &followers, origin());
+
+    assert_eq!(updated.len(), 3);
+    assert!(
+        updated
+            .iter()
+            .all(|entry| entry.initiator == Initiator::Unknown),
+        "nothing about a graph that already existed was observed, so nothing may be claimed"
+    );
+}
+
+#[test]
 fn a_new_follower_you_do_not_follow_is_attributed_to_them() {
     let them = [user(1, "them")];
 
-    let record = only(attribute(&[], &[], &them, origin()));
+    let record = only(attribute(&established(), &[], &them, origin()));
 
     assert_eq!(record.initiator, Initiator::Them);
     assert_eq!(record.they_followed_at, Some(origin()));
@@ -42,20 +75,19 @@ fn a_new_follower_you_do_not_follow_is_attributed_to_them() {
 fn an_account_you_follow_first_is_attributed_to_you() {
     let mine = [user(2, "mine")];
 
-    let record = only(attribute(&[], &mine, &[], origin()));
+    let record = only(attribute(&established(), &mine, &[], origin()));
 
     assert_eq!(record.initiator, Initiator::Me);
     assert_eq!(record.i_followed_at, Some(origin()));
 }
 
 #[test]
-fn an_already_mutual_account_stays_unknown_forever() {
+fn an_account_already_mutual_when_first_seen_stays_unknown_forever() {
     let both = [user(3, "old-friend")];
 
-    let first = only(attribute(&[], &both, &both, origin()));
+    let first = only(attribute(&established(), &both, &both, origin()));
     assert_eq!(first.initiator, Initiator::Unknown);
 
-    // Still unknown a month later, because the order was never observable.
     let second = only(attribute(&[first], &both, &both, later(30)));
     assert_eq!(
         second.initiator,
@@ -68,7 +100,7 @@ fn an_already_mutual_account_stays_unknown_forever() {
 fn following_back_records_the_time_without_changing_who_began_it() {
     let them = [user(1, "them")];
 
-    let day_one = only(attribute(&[], &[], &them, origin()));
+    let day_one = only(attribute(&established(), &[], &them, origin()));
     let day_two = only(attribute(&[day_one], &them, &them, later(1)));
 
     assert_eq!(day_two.initiator, Initiator::Them, "they still began it");
@@ -80,7 +112,7 @@ fn following_back_records_the_time_without_changing_who_began_it() {
 fn a_follower_who_leaves_has_their_departure_recorded() {
     let them = [user(1, "them")];
 
-    let followed = only(attribute(&[], &them, &them, origin()));
+    let followed = only(attribute(&established(), &them, &them, origin()));
     let left = only(attribute(&[followed], &them, &[], later(5)));
 
     assert_eq!(left.they_unfollowed_at, Some(later(5)));
@@ -90,7 +122,7 @@ fn a_follower_who_leaves_has_their_departure_recorded() {
 fn a_returning_follower_restarts_the_window() {
     let them = [user(1, "them")];
 
-    let followed = only(attribute(&[], &[], &them, origin()));
+    let followed = only(attribute(&established(), &[], &them, origin()));
     let left = only(attribute(&[followed], &them, &[], later(5)));
     let returned = only(attribute(&[left], &them, &them, later(9)));
 
@@ -110,7 +142,7 @@ fn a_renamed_account_keeps_its_history_under_the_new_name() {
     let before = [user(7, "old-name")];
     let after = [user(7, "new-name")];
 
-    let first = only(attribute(&[], &[], &before, origin()));
+    let first = only(attribute(&established(), &[], &before, origin()));
     let second = only(attribute(&[first], &[], &after, later(2)));
 
     assert_eq!(
@@ -128,7 +160,7 @@ fn a_renamed_account_keeps_its_history_under_the_new_name() {
 fn every_account_appears_once_even_when_on_both_sides() {
     let both = [user(1, "a"), user(2, "b")];
 
-    let updated = attribute(&[], &both, &both, origin());
+    let updated = attribute(&established(), &both, &both, origin());
 
     assert_eq!(updated.len(), 2, "mutuals must not be recorded twice");
 }

@@ -1,4 +1,4 @@
-# gitbye
+# Gitbye
 
 A desktop application that compares the GitHub accounts you follow against the
 accounts following you, then lets you unfollow the ones that never reciprocated.
@@ -110,7 +110,75 @@ windowrulev2 = center, class:^(gitbye)$
 The window then opens floating and centred, and drags with the stock `SUPER`
 plus left-drag binding.
 
-## Build and run
+## Install
+
+Puts `gitbye` on your path and adds it to the application launcher:
+
+```bash
+cargo build --release && install -Dm755 "$(cargo metadata --format-version 1 --no-deps | grep -o '"target_directory":"[^"]*"' | cut -d'"' -f4)/release/gitbye" ~/.local/bin/gitbye
+```
+
+```bash
+install -Dm644 assets/gitbye.desktop ~/.local/share/applications/gitbye.desktop && install -Dm644 assets/gitbye.svg ~/.local/share/icons/hicolor/scalable/apps/gitbye.svg && update-desktop-database ~/.local/share/applications
+```
+
+Then `gitbye` from a terminal, or Gitbye from the launcher.
+
+## Modes
+
+```
+gitbye              open the window
+gitbye --sweep      run the unattended rule once, then exit
+gitbye --dry-run    say what --sweep would do, changing nothing
+gitbye --help       usage
+```
+
+## The unattended sweep
+
+The sweep returns follows that were never sincere. It unfollows an account only
+when every one of these holds:
+
+- they followed you first, and this application watched it happen
+- you followed them back
+- they have since unfollowed you
+- less than ten weeks passed between their follow and their unfollow
+- they are not on the keep-list
+
+**A follow you began is never withdrawn automatically.** If you followed someone
+first, that was your decision, and only you undo it. Those accounts still appear
+in "Not following back" for manual action.
+
+Coming back restarts the clock, so a leave-and-return cannot be used to run out
+the ten weeks.
+
+### What it cannot know
+
+The sweep can only judge relationships it observed from the beginning. Anything
+that already existed when you first ran the application is recorded as unknown
+and is permanently exempt, because there is no way to discover who moved first
+after the fact. That exemption is reported on every run.
+
+### Scheduling it
+
+```bash
+install -Dm644 assets/systemd/gitbye-sweep.service ~/.config/systemd/user/gitbye-sweep.service && install -Dm644 assets/systemd/gitbye-sweep.timer ~/.config/systemd/user/gitbye-sweep.timer
+```
+
+```bash
+systemctl --user daemon-reload && systemctl --user enable --now gitbye-sweep.timer
+```
+
+The shipped unit runs `--dry-run`, so enabling the timer arms a **report, not an
+unfollow**. Watch it for a few days:
+
+```bash
+journalctl --user -u gitbye-sweep --since today
+```
+
+Once it selects who you expect, change `ExecStart` in the service file from
+`--dry-run` to `--sweep` and run `systemctl --user daemon-reload`.
+
+## Build and run from source
 
 ```bash
 cargo run --release

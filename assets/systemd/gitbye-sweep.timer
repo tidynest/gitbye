@@ -1,0 +1,15 @@
+[Unit]
+Description=Run the Gitbye sweep once a day
+Documentation=https://github.com/tidynest/gitbye
+
+[Timer]
+OnCalendar=daily
+# Run on the next boot if the machine was off when it was due, since a laptop
+# that sleeps through the scheduled hour should not simply skip a day.
+Persistent=true
+# Nothing about this is urgent, and it spares GitHub a thundering herd at
+# midnight from every machine running it.
+RandomizedDelaySec=30m
+
+[Install]
+WantedBy=timers.target
