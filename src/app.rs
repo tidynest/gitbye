@@ -99,6 +99,13 @@ impl Action {
 /// How many recent changes the history view lists.
 const EVENT_LIMIT: usize = 40;
 
+/// How long an animating frame waits before asking for the next one.
+///
+/// Presenting no longer waits for the display, so an animation would otherwise
+/// redraw as fast as the processor allows. This paces it at roughly sixty
+/// frames a second, which is as smooth as any screen here can show.
+const FRAME: Duration = Duration::from_millis(16);
+
 /// Renders a count with its noun, pluralised.
 fn plural(count: usize, noun: &str) -> String {
     if count == 1 {
@@ -594,9 +601,9 @@ impl eframe::App for GitbyeApp {
         self.toasts.retain(|toast| !toast.expired());
 
         // A toast on screen is animating, so the frame must keep coming even
-        // when nothing else has happened.
+        // when nothing else has happened, paced rather than free-running.
         if !self.toasts.is_empty() {
-            ctx.request_repaint();
+            ctx.request_repaint_after(FRAME);
         }
 
         ui::draw(self, ctx);

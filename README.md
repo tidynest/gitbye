@@ -132,25 +132,31 @@ install -Dm644 assets/gitbye.desktop ~/.local/share/applications/gitbye.desktop 
 
 Then `gitbye` from a terminal, or GitBye from the launcher.
 
-### A note on launching it
+### Why this window does not wait for the display
 
-Run it normally. Do not launch it inside a CPU-limited cgroup or at a raised
-nice value alongside heavy work.
+A compositor pings each window and declares it dead after a few unanswered
+replies. Hyprland pings about once a second and gives up after five.
 
-Hyprland pings each window and shows "Application Not Responding" after five
-missed replies. An idle GUI needs almost no CPU, but one niced below a running
-compiler and sharing a capped quota with it can miss five pings in a row while
-being perfectly healthy. The dialog is then reporting the throttling, not a bug.
+Presenting a frame normally waits for the compositor to hand back a buffer to
+draw into. A window on a hidden workspace is never given one, because there is
+nothing to present to. Waiting for it happens inside the event loop, which is
+also what answers the pings, so the window stops replying and gets reported as
+not responding while being perfectly healthy.
 
-If you want the dialog gone regardless, it is a global Hyprland setting rather
-than a per-window rule (`noanr` is not a valid rule in 0.56):
+This is why switching workspaces triggered it, and why the dialog appeared
+shortly after each launch: the opening sync animates, and an animating window
+keeps trying to present.
 
-```
-misc:enable_anr_dialog = false
-```
+The window therefore runs with `vsync: false`, so presenting returns
+immediately. Nothing is lost by it. The interface is static, redraws only when
+something changes, and the compositor still synchronises what reaches the
+screen. Animations are paced explicitly instead, at roughly sixty frames a
+second, since the display is no longer doing the pacing.
 
-That silences it for every application, including ones that genuinely hang, so
-it is a blunt instrument.
+There is no per-window escape hatch to use instead: `noanr` is not a valid rule
+in Hyprland 0.56, which rejects it with `invalid field type noanr`. The only
+alternative is `misc:enable_anr_dialog = false`, which silences the warning for
+every application including ones that have genuinely hung.
 
 ## Modes
 

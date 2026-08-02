@@ -5,6 +5,27 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-08-02
+
+### Fixed
+
+- The window is no longer reported as "not responding". Presenting a frame
+  waited for the compositor to return a buffer, which never arrives for a window
+  on a hidden workspace, and that wait happens inside the event loop that also
+  answers the compositor's liveness pings. Switching workspaces was enough to
+  trigger it. Presenting no longer waits, which costs nothing on an interface
+  that redraws only when something changes
+- Animations are paced explicitly at roughly sixty frames a second, rather than
+  redrawing as fast as the processor allows now that the display no longer paces
+  them
+
+### Changed
+
+- The README explains why presenting does not wait, and records that Hyprland
+  0.56 has no per-window `noanr` rule. It replaces an earlier note blaming CPU
+  throttling, which was wrong: the dialog reproduced at normal priority on an
+  idle machine, with every application thread asleep when it fired
+
 ## [0.5.2] - 2026-08-02
 
 ### Fixed

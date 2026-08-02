@@ -93,6 +93,13 @@ fn window() -> Result<ExitCode> {
             .with_title("GitBye")
             .with_inner_size([1180.0, 760.0])
             .with_min_inner_size([720.0, 480.0]),
+        // Presenting a frame waits for the compositor to hand back a buffer, and
+        // a window on a hidden workspace never gets one. Waiting for that inside
+        // the event loop stops it answering the compositor's liveness pings, so
+        // switching away from this window made it look hung. The interface is
+        // static and repaints at most a few times a second, so nothing here
+        // needs the tearing protection that waiting would buy.
+        vsync: false,
         // Honoured on X11. Inert on Wayland, where placement belongs to the
         // compositor, so the window rules do this instead.
         centered: true,
