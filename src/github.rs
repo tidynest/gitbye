@@ -24,8 +24,21 @@ const MAX_PAGES: usize = 100;
 /// Sent as the User-Agent, which GitHub requires on every request.
 const AGENT: &str = concat!("gitbye/", env!("CARGO_PKG_VERSION"));
 
+/// The scope a token needs before it may follow or unfollow anyone.
+const FOLLOW_SCOPE: &str = "user:follow";
+
 /// The command that grants the scope needed to follow and unfollow.
 pub const SCOPE_FIX: &str = "gh auth refresh -h github.com -s user:follow";
+
+/// Whether a scope list reported by GitHub permits following and unfollowing.
+///
+/// An empty list is read as permission, not refusal. Only classic tokens report
+/// their scopes; a fine-grained one reports none, and refusing those would
+/// disable the feature for tokens that work perfectly well.
+#[must_use]
+pub fn grants_follow(listed: &str) -> bool {
+    listed.trim().is_empty() || listed.split(',').any(|scope| scope.trim() == FOLLOW_SCOPE)
+}
 
 /// Borrows the current token from the `gh` command line tool.
 ///
@@ -133,6 +146,35 @@ impl Github {
     /// Fails when GitHub is unreachable or rejects the request.
     pub fn followers(&self) -> Result<Vec<User>> {
         self.paginate("/user/followers")
+    }
+
+    /// Whether the token carries the scope that following and unfollowing need.
+    ///
+    /// Asking up front turns a failure discovered after a batch has been chosen
+    /// and confirmed into a warning shown before any of that effort is spent.
+    ///
+    /// GitHub only lists scopes for classic tokens. A fine-grained token reports
+    /// none at all, which says nothing about what it may do, so silence is read
+    /// as permission rather than as refusal. Being wrong in that direction costs
+    /// a clear error at the point of use; being wrong in the other would disable
+    /// the feature for a token that works.
+    ///
+    /// # Errors
+    ///
+    /// Fails when GitHub is unreachable or rejects the request.
+    pub fn may_follow(&self) -> Result<bool> {
+        let response = self
+            .request(Method::GET, "/user")
+            .send()
+            .context("could not reach GitHub to check the token")?
+            .error_for_status()
+            .context("GitHub rejected the token")?;
+
+        let Some(scopes) = response.headers().get("x-oauth-scopes") else {
+            return Ok(true);
+        };
+
+        Ok(grants_follow(scopes.to_str().unwrap_or_default()))
     }
 
     /// Shared body of [`Self::follow`] and [`Self::unfollow`], which differ only

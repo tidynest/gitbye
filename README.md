@@ -55,6 +55,19 @@ the effective token carries with:
 curl -sS -I -H "Authorization: Bearer $(gh auth token)" https://api.github.com/user | grep -i x-oauth-scopes
 ```
 
+Note also that a launcher entry does not inherit your shell environment. A
+terminal that exports `GITHUB_TOKEN` in its profile passes it on, whereas the
+same application started from the launcher falls back to `gh auth token` and may
+receive a different token entirely. The surest fix is to grant the scope to the
+token `gh` itself holds, so every way of starting the application agrees:
+
+```bash
+env -u GITHUB_TOKEN gh auth refresh -h github.com -s user:follow
+```
+
+Either way the application now checks on each sync and says so in a banner
+before you select anything, instead of failing once a batch is under way.
+
 ### 2. Database
 
 The keep-list and the sync history live in PostgreSQL. On Arch Linux, if no

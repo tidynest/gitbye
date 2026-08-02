@@ -14,7 +14,7 @@ use anyhow::{Context as _, Result, anyhow};
 use eframe::egui::{Color32, Context};
 
 use crate::db::Store;
-use crate::github::Github;
+use crate::github::{Github, SCOPE_FIX};
 use crate::model::{
     Buckets, Event, Initiator, Msg, Recorded, Snapshot, User, attribute, bucket, recent_events,
 };
@@ -105,6 +105,37 @@ const EVENT_LIMIT: usize = 40;
 /// redraw as fast as the processor allows. This paces it at roughly sixty
 /// frames a second, which is as smooth as any screen here can show.
 const FRAME: Duration = Duration::from_millis(16);
+
+/// What the application is currently allowed to do on the user's behalf.
+///
+/// The two are independent: the keep-list guards against unfollowing someone
+/// who was meant to be spared, the scope governs whether GitHub will accept the
+/// change at all.
+pub(crate) struct Permits {
+    /// The keep-list was read, so unfollowing can be offered safely.
+    pub(crate) keep: bool,
+    /// The token carries the scope that following and unfollowing need.
+    pub(crate) follow: bool,
+}
+
+/// The single most limiting problem worth reporting after a sync, if any.
+///
+/// An unreadable keep-list is stated first because it is the stricter of the
+/// two: it withdraws unfollowing whatever the token is allowed to do.
+fn obstacle(store_error: Option<&String>, may_follow: bool) -> Option<Banner> {
+    let message = match (store_error, may_follow) {
+        (Some(reason), _) => format!("Keep-list unavailable: {reason}. Unfollowing is disabled."),
+        (None, false) => {
+            format!("This token cannot follow or unfollow. Grant the scope with: {SCOPE_FIX}")
+        }
+        (None, true) => return None,
+    };
+
+    Some(Banner {
+        message,
+        is_error: true,
+    })
+}
 
 /// Renders a count with its noun, pluralised.
 fn plural(count: usize, noun: &str) -> String {
@@ -251,10 +282,16 @@ fn sync_job(github: &Github, store: &Mutex<Option<Store>>) -> Msg {
         Err(error) => Err(format!("{error:#}")),
     };
 
+    // A token that cannot be checked is treated as usable, so a transient
+    // network fault warns about nothing and the real error still arrives at the
+    // point of use.
+    let may_follow = github.may_follow().unwrap_or(true);
+
     Msg::Synced {
         following,
         followers,
         recorded,
+        may_follow,
     }
 }
 
@@ -291,7 +328,7 @@ pub struct GitbyeApp {
     pub(crate) banner: Option<Banner>,
     pub(crate) progress: Option<Progress>,
     pub(crate) busy: bool,
-    pub(crate) keep_ready: bool,
+    pub(crate) permits: Permits,
     /// Free-text filter applied to the visible bucket.
     pub(crate) filter: String,
     /// Whether the action sheet is open.
@@ -335,7 +372,12 @@ impl GitbyeApp {
             banner: None,
             progress: None,
             busy: false,
-            keep_ready: false,
+            permits: Permits {
+                keep: false,
+                // Assumed until the first sync reports otherwise, so the
+                // interface does not accuse a good token before it has looked.
+                follow: true,
+            },
             filter: String::new(),
             sheet: false,
             toasts: Vec::new(),
@@ -484,8 +526,10 @@ impl GitbyeApp {
     pub(crate) fn can_write(&self, action: Action) -> bool {
         // Following is never gated on the keep-list, which only ever guards
         // against unfollowing.
-        let guarded = action == Action::Unfollow && !self.keep_ready;
-        !self.busy && !guarded && !self.selected.is_empty()
+        let guarded = action == Action::Unfollow && !self.permits.keep;
+        // Both directions need the same scope, so a token without it stops
+        // either being offered rather than failing once the batch is under way.
+        !self.busy && !guarded && self.permits.follow && !self.selected.is_empty()
     }
 
     /// Recomputes the buckets and drops any selection that no longer applies.
@@ -544,16 +588,13 @@ impl GitbyeApp {
                     following,
                     followers,
                     recorded,
+                    may_follow,
                 } => {
                     // An unreadable store is a single fact, so the whole value
                     // is absent rather than each part being separately empty.
-                    self.keep_ready = recorded.is_ok();
-                    self.banner = recorded.as_ref().err().map(|reason| Banner {
-                        message: format!(
-                            "Keep-list unavailable: {reason}. Unfollowing is disabled."
-                        ),
-                        is_error: true,
-                    });
+                    self.permits.keep = recorded.is_ok();
+                    self.permits.follow = may_follow;
+                    self.banner = obstacle(recorded.as_ref().err(), may_follow);
                     let recorded = recorded.unwrap_or_default();
                     self.origins = recorded.origins;
                     self.history = recorded.history;
@@ -568,7 +609,7 @@ impl GitbyeApp {
                 }
                 Msg::KeepList(keep) => {
                     self.keep = keep;
-                    self.keep_ready = true;
+                    self.permits.keep = true;
                     self.recompute();
                     self.busy = false;
                 }

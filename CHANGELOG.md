@@ -5,6 +5,23 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-08-02
+
+### Added
+
+- The token is checked for the `user:follow` scope during each sync. Without it
+  a banner names the command that grants it, and both follow and unfollow are
+  withheld, rather than the problem surfacing only after a batch has been
+  chosen, confirmed and attempted
+
+### Changed
+
+- The two capability flags are grouped, so the reason an action is unavailable
+  is stated where it is decided rather than spread across loose booleans
+- A token that reports no scopes at all is treated as permitted. Only classic
+  tokens list their scopes, and refusing fine-grained ones would withdraw the
+  feature from tokens that work
+
 ## [0.5.3] - 2026-08-02
 
 ### Fixed

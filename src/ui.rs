@@ -604,7 +604,7 @@ impl SheetOption {
         match self.action {
             SheetAction::Unfollow => app.can_write(Action::Unfollow),
             SheetAction::Follow => app.can_write(Action::Follow),
-            SheetAction::Keep | SheetAction::Unkeep => app.keep_ready && !app.busy,
+            SheetAction::Keep | SheetAction::Unkeep => app.permits.keep && !app.busy,
         }
     }
 

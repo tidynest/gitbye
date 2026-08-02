@@ -363,6 +363,10 @@ pub enum Msg {
         /// unreadable one are indistinguishable in a set difference, and one of
         /// those means unfollowing accounts that were meant to be spared.
         recorded: Result<Recorded, String>,
+        /// Whether the token may follow and unfollow. Checked once per sync so
+        /// a missing scope is reported before a batch is chosen rather than
+        /// after it has been confirmed and attempted.
+        may_follow: bool,
     },
     /// The keep-list after it was changed, so buckets can be recomputed without
     /// another round trip to GitHub.
