@@ -5,6 +5,18 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.6] - 2026-08-02
+
+### Fixed
+
+- An empty "Not following back" no longer claims everyone reciprocates. The
+  keep-list is subtracted from that bucket, so emptying it means nobody who
+  fails to reciprocate is left unprotected, which is a different statement. With
+  accounts in Keeping the old wording contradicted the count displayed directly
+  beside it
+- The empty state now reports how many kept accounts do not follow back, and
+  reserves "All square" for when that number is genuinely zero
+
 ## [0.5.5] - 2026-08-02
 
 ### Fixed

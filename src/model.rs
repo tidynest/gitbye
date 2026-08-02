@@ -328,6 +328,19 @@ pub struct User {
     pub login: String,
 }
 
+/// Why nothing is left to act on.
+///
+/// The keep-list is subtracted from the actionable bucket, so its being empty
+/// carries two quite different meanings. Stating the wrong one contradicts the
+/// counts shown beside it.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Settled {
+    /// Every account followed reciprocates.
+    Mutual,
+    /// Accounts that do not reciprocate remain, and all are protected.
+    AllKept(usize),
+}
+
 /// The four mutually exclusive groups the follow graph sorts into.
 ///
 /// Every account you follow lands in exactly one of `unreciprocated`, `keeping`
@@ -344,6 +357,18 @@ pub struct Buckets {
     pub mutuals: Vec<User>,
     /// Follows you, not followed by you.
     pub fans: Vec<User>,
+}
+
+impl Buckets {
+    /// Why there is nothing to act on. Only meaningful while
+    /// [`Self::unreciprocated`] is empty.
+    #[must_use]
+    pub fn settled(&self) -> Settled {
+        match self.keeping.len() {
+            0 => Settled::Mutual,
+            kept => Settled::AllKept(kept),
+        }
+    }
 }
 
 /// What a background worker reports back to the interface thread.

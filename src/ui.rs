@@ -17,7 +17,7 @@ use eframe::egui::{
 };
 
 use crate::app::{Action, GitbyeApp, Tab, Tone, View};
-use crate::model::{Event, EventKind, Initiator, User};
+use crate::model::{Event, EventKind, Initiator, Settled, User};
 use crate::theme;
 use crate::widgets::{self, ROW_HEIGHT, Reciprocity, RowAction};
 
@@ -379,6 +379,29 @@ fn mark_for(tab: Tab, initiator: Initiator) -> Reciprocity {
     }
 }
 
+/// What an empty "Not following back" means, which the keep-list decides.
+///
+/// That bucket has the keep-list subtracted from it, so emptying it does not
+/// mean everybody reciprocates. It means nobody who fails to is left
+/// unprotected, and claiming otherwise while accounts sit in Keeping states
+/// something the counts beside it plainly contradict.
+fn nothing_to_act_on(settled: Settled) -> (&'static str, String) {
+    match settled {
+        Settled::Mutual => (
+            "All square",
+            "Everyone you follow follows you back.".to_owned(),
+        ),
+        Settled::AllKept(1) => (
+            "Nothing to act on",
+            "One account does not follow you back, and you are keeping it.".to_owned(),
+        ),
+        Settled::AllKept(kept) => (
+            "Nothing to act on",
+            format!("{kept} accounts do not follow you back, and you are keeping all of them."),
+        ),
+    }
+}
+
 /// What an empty field says. A filter that matches nothing is a different
 /// situation from a bucket that is genuinely empty, and it gets a different line.
 fn empty_state(ui: &mut Ui, app: &GitbyeApp) {
@@ -386,17 +409,23 @@ fn empty_state(ui: &mut Ui, app: &GitbyeApp) {
     ui.vertical_centered(|ui| {
         let filtered = !app.filter.trim().is_empty() && !app.rows().is_empty();
         let (headline, detail) = match (filtered, app.tab, app.busy) {
-            (true, _, _) => ("No match", "Nothing in this list matches that filter."),
-            (_, _, true) => ("Loading", "Reading your follow graph."),
-            (_, Tab::Unreciprocated, _) => ("All square", "Everyone you follow follows you back."),
+            (true, _, _) => (
+                "No match",
+                "Nothing in this list matches that filter.".to_owned(),
+            ),
+            (_, _, true) => ("Loading", "Reading your follow graph.".to_owned()),
+            (_, Tab::Unreciprocated, _) => nothing_to_act_on(app.buckets.settled()),
             (_, Tab::Keeping, _) => (
                 "Nobody kept",
-                "Select accounts and choose Keep to shield them.",
+                "Select accounts and choose Keep to shield them.".to_owned(),
             ),
-            (_, Tab::Mutuals, _) => ("No mutuals", "Nobody you follow follows you back yet."),
+            (_, Tab::Mutuals, _) => (
+                "No mutuals",
+                "Nobody you follow follows you back yet.".to_owned(),
+            ),
             (_, Tab::Fans, _) => (
                 "No fans",
-                "Nobody follows you that you do not already follow.",
+                "Nobody follows you that you do not already follow.".to_owned(),
             ),
         };
         ui.label(strong(headline, 17.0, theme::DIM));
