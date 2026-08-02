@@ -10,13 +10,76 @@ use std::time::{Duration, SystemTime};
 
 use serde::Deserialize;
 
+/// A day, the unit every window is a whole number of.
+const DAY: Duration = Duration::from_secs(24 * 60 * 60);
+
 /// How long a new follower has to keep following before their follow is treated
-/// as sincere.
+/// as sincere, until it is set to something else.
 ///
 /// Unfollow inside this window having been followed back, and the follow is
 /// returned. Stay past it and the follow is kept even if they later leave.
+pub const DEFAULT_GRACE: Duration = Duration::from_secs(10 * 7 * 24 * 60 * 60);
+
+/// Shortest window that may be set. A window of nothing would withdraw a follow
+/// from anyone who ever left, however briefly, which is not a grace period.
+pub const MIN_GRACE: Duration = DAY;
+
+/// Longest window that may be set. Past a year the rule stops being a grace
+/// period and quietly stops selecting anybody, which is better refused than
+/// accepted in silence.
+pub const MAX_GRACE: Duration = Duration::from_secs(365 * 24 * 60 * 60);
+
+/// Reads a sweep window written as weeks or days: `6w`, `45d`, or a bare number
+/// of days.
 ///
-pub const GRACE: Duration = Duration::from_secs(10 * 7 * 24 * 60 * 60);
+/// # Errors
+///
+/// Returns a sentence naming the problem when the text is not a window, or
+/// when it falls outside [`MIN_GRACE`] and [`MAX_GRACE`].
+pub fn parse_grace(spec: &str) -> Result<Duration, String> {
+    let text = spec.trim().to_lowercase();
+    let (digits, unit) = match text.strip_suffix(['w', 'd']) {
+        Some(digits) => (digits, text.as_bytes()[text.len() - 1]),
+        None => (text.as_str(), b'd'),
+    };
+
+    let count: u32 = digits
+        .trim()
+        .parse()
+        .map_err(|_| format!("'{spec}' is not a window. Write it as 6w or 45d"))?;
+
+    let days = if unit == b'w' { count * 7 } else { count };
+    let window = DAY * days;
+
+    if window < MIN_GRACE || window > MAX_GRACE {
+        return Err(format!(
+            "a window of {} is outside the permitted {} to {}",
+            describe_grace(window),
+            describe_grace(MIN_GRACE),
+            describe_grace(MAX_GRACE)
+        ));
+    }
+
+    Ok(window)
+}
+
+/// Names a window the way it was most likely meant, in weeks where it divides
+/// evenly and in days otherwise.
+#[must_use]
+pub fn describe_grace(window: Duration) -> String {
+    let days = window.as_secs() / DAY.as_secs();
+    // Nothing divides evenly by a week, so guard it before the weeks case or a
+    // refusal reads as "0 weeks", which sounds like a rounding rather than none.
+    let (count, noun) = match (days, days % 7) {
+        (0, _) => (0, "day"),
+        (_, 0) => (days / 7, "week"),
+        _ => (days, "day"),
+    };
+    match count {
+        1 => format!("1 {noun}"),
+        _ => format!("{count} {noun}s"),
+    }
+}
 
 /// Who moved first.
 ///
@@ -193,7 +256,7 @@ pub struct Snapshot {
 ///
 /// Carried as a whole rather than as separate fields, because its absence is a
 /// single fact: the store was unreachable, so none of it is known.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Recorded {
     /// Ids on the keep-list.
     pub keep: Vec<i64>,
@@ -203,6 +266,24 @@ pub struct Recorded {
     pub history: Vec<Snapshot>,
     /// The most recent changes, newest first.
     pub events: Vec<Event>,
+    /// The sweep window in force.
+    pub grace: Duration,
+}
+
+impl Default for Recorded {
+    /// Everything absent, and the window at its shipped default.
+    ///
+    /// Derived defaults would put the window at nothing, which is not a
+    /// neutral starting point: it reads as a rule that sweeps everybody.
+    fn default() -> Self {
+        Self {
+            keep: Vec::new(),
+            origins: HashMap::new(),
+            history: Vec::new(),
+            events: Vec::new(),
+            grace: DEFAULT_GRACE,
+        }
+    }
 }
 
 /// What happened, and to whom.
@@ -291,7 +372,11 @@ pub fn recent_events(relationships: &[Relationship], limit: usize) -> Vec<Event>
 ///
 /// `kept` is the keep-list, which overrides everything.
 #[must_use]
-pub fn should_sweep<S: BuildHasher>(relationship: &Relationship, kept: &HashSet<i64, S>) -> bool {
+pub fn should_sweep<S: BuildHasher>(
+    relationship: &Relationship,
+    kept: &HashSet<i64, S>,
+    grace: Duration,
+) -> bool {
     // The keep-list outranks everything, automation included.
     if kept.contains(&relationship.user_id) {
         return false;
@@ -312,7 +397,7 @@ pub fn should_sweep<S: BuildHasher>(relationship: &Relationship, kept: &HashSet<
 
     // `duration_since` fails when the end precedes the start. That is corrupt
     // data rather than an extremely short window, so it refuses.
-    ended.duration_since(started).is_ok_and(|held| held < GRACE)
+    ended.duration_since(started).is_ok_and(|held| held < grace)
 }
 
 /// A GitHub account.
@@ -396,6 +481,9 @@ pub enum Msg {
     /// The keep-list after it was changed, so buckets can be recomputed without
     /// another round trip to GitHub.
     KeepList(Vec<i64>),
+    /// The sweep window after it was changed, read back from the store so the
+    /// window shows what was actually kept rather than what was asked for.
+    Grace(Duration),
     /// One step of a batch completed.
     Progress {
         /// Steps completed so far.

@@ -16,7 +16,8 @@ use eframe::egui::{Color32, Context};
 use crate::db::Store;
 use crate::github::{Github, SCOPE_FIX};
 use crate::model::{
-    Buckets, Event, Initiator, Msg, Recorded, Snapshot, User, attribute, bucket, recent_events,
+    Buckets, DEFAULT_GRACE, Event, Initiator, Msg, Recorded, Snapshot, User, attribute, bucket,
+    describe_grace, recent_events,
 };
 use crate::{theme, ui};
 
@@ -276,6 +277,7 @@ fn sync_job(github: &Github, store: &Mutex<Option<Store>>) -> Msg {
                 .collect(),
             history: store.history()?,
             events: recent_events(&updated, EVENT_LIMIT),
+            grace: store.grace()?,
         })
     }) {
         Ok(recorded) => Ok(recorded),
@@ -329,6 +331,8 @@ pub struct GitbyeApp {
     pub(crate) progress: Option<Progress>,
     pub(crate) busy: bool,
     pub(crate) permits: Permits,
+    /// How long a follow must last before the sweep treats it as sincere.
+    pub(crate) grace: Duration,
     /// Free-text filter applied to the visible bucket.
     pub(crate) filter: String,
     /// Whether the action sheet is open.
@@ -372,6 +376,7 @@ impl GitbyeApp {
             banner: None,
             progress: None,
             busy: false,
+            grace: DEFAULT_GRACE,
             permits: Permits {
                 keep: false,
                 // Assumed until the first sync reports otherwise, so the
@@ -415,6 +420,21 @@ impl GitbyeApp {
         thread::spawn(move || {
             let outcome = job(&reporter);
             reporter.send(outcome);
+        });
+    }
+
+    /// Stores a new sweep window and reports back what was kept.
+    pub(crate) fn set_grace(&mut self, window: Duration, ctx: &Context) {
+        let store = Arc::clone(&self.store);
+        self.spawn(ctx, move |_| {
+            let outcome = with_store(&store, |store| {
+                store.set_grace(window)?;
+                store.grace()
+            });
+            match outcome {
+                Ok(stored) => Msg::Grace(stored),
+                Err(error) => Msg::Error(format!("{error:#}")),
+            }
         });
     }
 
@@ -599,6 +619,7 @@ impl GitbyeApp {
                     self.origins = recorded.origins;
                     self.history = recorded.history;
                     self.events = recorded.events;
+                    self.grace = recorded.grace;
                     self.keep = recorded.keep;
                     self.following = following;
                     self.followers = followers;
@@ -606,6 +627,16 @@ impl GitbyeApp {
                     self.busy = false;
                     self.progress = None;
                     self.synced_at = Some(Instant::now());
+                }
+                Msg::Grace(window) => {
+                    self.grace = window;
+                    self.busy = false;
+                    self.toasts.push(Toast {
+                        message: format!("Sweep window set to {}.", describe_grace(window)),
+                        tone: Tone::Good,
+                        born: Instant::now(),
+                        undo: None,
+                    });
                 }
                 Msg::KeepList(keep) => {
                     self.keep = keep;

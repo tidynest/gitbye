@@ -5,6 +5,30 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-02
+
+### Added
+
+- The sweep window is configurable, from the command line and from the window,
+  having been fixed at ten weeks. `--set-grace 6w` stores a new one and
+  `--grace 6w` governs a single run without adopting it, so a figure can be
+  tried with `--dry-run` first
+- A control under History sets it, placed where the plot already shows what the
+  rule has been doing
+- Windows are written in weeks or days, and named back in the unit they were
+  most likely meant in
+- The figure is stored in PostgreSQL beside the keep-list, so the timer, the
+  command line and the window cannot each judge against a different one
+
+### Changed
+
+- Anything outside one day to a year is refused rather than clamped. A window of
+  nothing withdraws a follow from anyone who ever left, and a window of years
+  stops selecting anybody, so both are stated rather than silently accepted
+- `should_sweep` takes the window as an argument instead of reading a constant
+
+Closes #1
+
 ## [0.5.6] - 2026-08-02
 
 ### Fixed

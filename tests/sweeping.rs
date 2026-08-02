@@ -7,7 +7,7 @@
 use std::collections::HashSet;
 use std::time::{Duration, SystemTime};
 
-use gitbye::model::{GRACE, Initiator, Relationship, should_sweep};
+use gitbye::model::{DEFAULT_GRACE, Initiator, Relationship, should_sweep};
 
 /// A fixed origin, so no test depends on the wall clock.
 fn origin() -> SystemTime {
@@ -36,17 +36,17 @@ fn nobody_kept() -> HashSet<i64> {
 
 #[test]
 fn a_follower_who_leaves_inside_the_window_is_swept() {
-    assert!(should_sweep(&farmer(), &nobody_kept()));
+    assert!(should_sweep(&farmer(), &nobody_kept(), DEFAULT_GRACE));
 }
 
 #[test]
 fn a_follower_who_stays_past_the_window_is_kept() {
     let mut patient = farmer();
     // One second past ten weeks.
-    patient.they_unfollowed_at = Some(origin() + GRACE + Duration::from_secs(1));
+    patient.they_unfollowed_at = Some(origin() + DEFAULT_GRACE + Duration::from_secs(1));
 
     assert!(
-        !should_sweep(&patient, &nobody_kept()),
+        !should_sweep(&patient, &nobody_kept(), DEFAULT_GRACE),
         "staying the full window earns the follow, even if they leave later"
     );
 }
@@ -54,10 +54,10 @@ fn a_follower_who_stays_past_the_window_is_kept() {
 #[test]
 fn the_boundary_itself_is_kept() {
     let mut exact = farmer();
-    exact.they_unfollowed_at = Some(origin() + GRACE);
+    exact.they_unfollowed_at = Some(origin() + DEFAULT_GRACE);
 
     assert!(
-        !should_sweep(&exact, &nobody_kept()),
+        !should_sweep(&exact, &nobody_kept(), DEFAULT_GRACE),
         "ten weeks exactly counts as having served the window"
     );
 }
@@ -67,7 +67,7 @@ fn a_follower_who_is_still_following_is_never_swept() {
     let mut loyal = farmer();
     loyal.they_unfollowed_at = None;
 
-    assert!(!should_sweep(&loyal, &nobody_kept()));
+    assert!(!should_sweep(&loyal, &nobody_kept(), DEFAULT_GRACE));
 }
 
 #[test]
@@ -76,7 +76,7 @@ fn an_account_you_followed_first_is_never_swept() {
     mine.initiator = Initiator::Me;
 
     assert!(
-        !should_sweep(&mine, &nobody_kept()),
+        !should_sweep(&mine, &nobody_kept(), DEFAULT_GRACE),
         "a follow you began is your decision and only you may undo it"
     );
 }
@@ -87,7 +87,7 @@ fn a_relationship_predating_the_application_is_never_swept() {
     ancient.initiator = Initiator::Unknown;
 
     assert!(
-        !should_sweep(&ancient, &nobody_kept()),
+        !should_sweep(&ancient, &nobody_kept(), DEFAULT_GRACE),
         "nothing can be claimed about a relationship that was never observed"
     );
 }
@@ -98,7 +98,7 @@ fn a_follow_you_never_returned_is_never_swept() {
     unreturned.i_followed_at = None;
 
     assert!(
-        !should_sweep(&unreturned, &nobody_kept()),
+        !should_sweep(&unreturned, &nobody_kept(), DEFAULT_GRACE),
         "there is nothing to undo if the follow was never returned"
     );
 }
@@ -108,7 +108,7 @@ fn the_keep_list_overrides_the_rule() {
     let kept: HashSet<i64> = [1].into_iter().collect();
 
     assert!(
-        !should_sweep(&farmer(), &kept),
+        !should_sweep(&farmer(), &kept, DEFAULT_GRACE),
         "the keep-list outranks automation, as it outranks everything else"
     );
 }
@@ -119,7 +119,7 @@ fn a_missing_start_time_refuses_rather_than_guesses() {
     undated.they_followed_at = None;
 
     assert!(
-        !should_sweep(&undated, &nobody_kept()),
+        !should_sweep(&undated, &nobody_kept(), DEFAULT_GRACE),
         "without a start there is no window to measure, so the answer is no"
     );
 }
@@ -131,7 +131,7 @@ fn clocks_running_backwards_refuse_rather_than_panic() {
     impossible.they_unfollowed_at = Some(after(2));
 
     assert!(
-        !should_sweep(&impossible, &nobody_kept()),
+        !should_sweep(&impossible, &nobody_kept(), DEFAULT_GRACE),
         "an unfollow before the follow is corrupt data, not a short window"
     );
 }

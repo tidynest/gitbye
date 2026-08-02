@@ -11,29 +11,78 @@ use std::process::ExitCode;
 
 use anyhow::{Result, anyhow};
 use eframe::egui::ViewportBuilder;
+use std::time::Duration;
+
 use gitbye::app::GitbyeApp;
+use gitbye::db::Store;
 use gitbye::github::{self, Github};
+use gitbye::model::{describe_grace, parse_grace};
 use gitbye::sweep;
 
 /// What the command line asked for.
 enum Mode {
     Window,
-    Sweep { rehearsal: bool },
+    Sweep {
+        rehearsal: bool,
+        /// A window governing this run alone.
+        grace: Option<Duration>,
+    },
+    SetGrace(Duration),
     Help,
+    /// The arguments did not make sense, and this says why.
+    Complaint(String),
+}
+
+/// The value given to a flag, written either as `--flag value` or `--flag=value`.
+fn value_of(arguments: &[String], flag: &str) -> Option<String> {
+    let prefix = format!("{flag}=");
+    if let Some(joined) = arguments.iter().find_map(|a| a.strip_prefix(&prefix)) {
+        return Some(joined.to_owned());
+    }
+
+    let at = arguments.iter().position(|argument| argument == flag)?;
+    arguments.get(at + 1).cloned()
 }
 
 /// Reads the mode from the arguments.
 ///
-/// Hand-rolled rather than pulled from a dependency, because there are three
-/// options and none of them takes a value.
+/// Hand-rolled rather than pulled from a dependency, because there are a handful
+/// of options and only two of them take a value.
 fn mode() -> Mode {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     let has = |flag: &str| arguments.iter().any(|argument| argument == flag);
 
+    if has("--help") || has("-h") {
+        return Mode::Help;
+    }
+
+    if let Some(spec) = value_of(&arguments, "--set-grace") {
+        return match parse_grace(&spec) {
+            Ok(window) => Mode::SetGrace(window),
+            Err(reason) => Mode::Complaint(reason),
+        };
+    }
+
+    let grace = match value_of(&arguments, "--grace").map(|spec| parse_grace(&spec)) {
+        Some(Ok(window)) => Some(window),
+        Some(Err(reason)) => return Mode::Complaint(reason),
+        None => None,
+    };
+
     match () {
-        () if has("--help") || has("-h") => Mode::Help,
-        () if has("--dry-run") => Mode::Sweep { rehearsal: true },
-        () if has("--sweep") => Mode::Sweep { rehearsal: false },
+        () if has("--dry-run") => Mode::Sweep {
+            rehearsal: true,
+            grace,
+        },
+        () if has("--sweep") => Mode::Sweep {
+            rehearsal: false,
+            grace,
+        },
+        // Accepting it here would look like it had been applied to something.
+        () if grace.is_some() => Mode::Complaint(
+            "--grace applies to --sweep or --dry-run. To change the stored window, use --set-grace"
+                .to_owned(),
+        ),
         () => Mode::Window,
     }
 }
@@ -41,13 +90,19 @@ fn mode() -> Mode {
 const USAGE: &str = "\
 gitbye - compare GitHub followers against following
 
-    gitbye              open the window
-    gitbye --sweep      run the unattended rule once, then exit
-    gitbye --dry-run    say what --sweep would do, changing nothing
-    gitbye --help       this
+    gitbye                  open the window
+    gitbye --sweep          run the unattended rule once, then exit
+    gitbye --dry-run        say what --sweep would do, changing nothing
+    gitbye --grace 6w       judge this run against a different window
+    gitbye --set-grace 6w   change the stored window, then exit
+    gitbye --help           this
+
+A window is written in weeks or days: 6w, 45d, or a bare number of days. It may
+be anything from 1 day to 365 days. --grace governs one run and leaves the
+stored window alone, so a figure can be tried with --dry-run before adopting it.
 
 The sweep unfollows accounts that followed you, were followed back, and left
-within ten weeks. It never touches a follow you began, an account on the
+within the window. It never touches a follow you began, an account on the
 keep-list, or a relationship whose beginning predates this record.";
 
 fn main() -> ExitCode {
@@ -66,8 +121,18 @@ fn run() -> Result<ExitCode> {
             println!("{USAGE}");
             Ok(ExitCode::SUCCESS)
         }
-        Mode::Sweep { rehearsal } => {
-            let report = sweep::run(rehearsal)?;
+        Mode::Complaint(reason) => {
+            eprintln!("{reason}");
+            Ok(ExitCode::FAILURE)
+        }
+        Mode::SetGrace(window) => {
+            let mut store = Store::connect()?;
+            store.set_grace(window)?;
+            println!("Sweep window set to {}.", describe_grace(window));
+            Ok(ExitCode::SUCCESS)
+        }
+        Mode::Sweep { rehearsal, grace } => {
+            let report = sweep::run(rehearsal, grace)?;
             println!("{}", report.describe());
             // A failure to unfollow somebody is worth a non-zero exit, so a
             // timer can report it rather than swallowing it.

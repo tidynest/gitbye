@@ -4,16 +4,19 @@
 //! so protection survives an account rename.
 
 use std::env;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use anyhow::{Context, Result, anyhow};
 use postgres::types::ToSql;
 use postgres::{Client, Config, NoTls, Transaction};
 
-use crate::model::{Initiator, Relationship, Snapshot, User};
+use crate::model::{DEFAULT_GRACE, Initiator, Relationship, Snapshot, User};
 
 /// Environment variable holding the connection string.
 pub const URL_VAR: &str = "DATABASE_URL";
+
+/// Key the sweep window is stored under.
+const GRACE_KEY: &str = "sweep_window_seconds";
 
 /// Directory holding the local PostgreSQL socket.
 const SOCKET_DIR: &str = "/run/postgresql";
@@ -47,6 +50,11 @@ const SCHEMA: &str = "
         login    TEXT        NOT NULL,
         note     TEXT,
         added_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS preference (
+        key   TEXT   PRIMARY KEY,
+        value BIGINT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS sync_run (
@@ -114,6 +122,50 @@ impl Store {
             .context("connected to PostgreSQL but could not apply the schema")?;
 
         Ok(store)
+    }
+
+    /// The sweep window in force, falling back to the shipped default until one
+    /// has been chosen.
+    ///
+    /// Stored rather than held per caller so the timer, the command line and the
+    /// window cannot each be judging against a different figure.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the query cannot be executed.
+    pub fn grace(&mut self) -> Result<Duration> {
+        let rows = self
+            .client
+            .query("SELECT value FROM preference WHERE key = $1", &[&GRACE_KEY])
+            .context("could not read the sweep window")?;
+
+        let Some(row) = rows.first() else {
+            return Ok(DEFAULT_GRACE);
+        };
+        let seconds: i64 = row.get(0);
+
+        // A negative or absurd row is corrupt rather than a setting, and the
+        // default is a safer reading of it than a window of nothing.
+        Ok(u64::try_from(seconds).map_or(DEFAULT_GRACE, Duration::from_secs))
+    }
+
+    /// Stores the sweep window, replacing any previous one.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the statement cannot be executed.
+    pub fn set_grace(&mut self, window: Duration) -> Result<()> {
+        let seconds = i64::try_from(window.as_secs()).unwrap_or(i64::MAX);
+
+        self.client
+            .execute(
+                "INSERT INTO preference (key, value) VALUES ($1, $2)
+                 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+                &[&GRACE_KEY, &seconds],
+            )
+            .context("could not store the sweep window")?;
+
+        Ok(())
     }
 
     /// Every account id currently on the keep-list.

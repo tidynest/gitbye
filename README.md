@@ -174,10 +174,12 @@ every application including ones that have genuinely hung.
 ## Modes
 
 ```
-gitbye              open the window
-gitbye --sweep      run the unattended rule once, then exit
-gitbye --dry-run    say what --sweep would do, changing nothing
-gitbye --help       usage
+gitbye                  open the window
+gitbye --sweep          run the unattended rule once, then exit
+gitbye --dry-run        say what --sweep would do, changing nothing
+gitbye --grace 6w       judge this run against a different window
+gitbye --set-grace 6w   change the stored window, then exit
+gitbye --help           usage
 ```
 
 ## The unattended sweep
@@ -188,7 +190,7 @@ when every one of these holds:
 - they followed you first, and this application watched it happen
 - you followed them back
 - they have since unfollowed you
-- less than ten weeks passed between their follow and their unfollow
+- less than the sweep window passed between their follow and their unfollow
 - they are not on the keep-list
 
 **A follow you began is never withdrawn automatically.** If you followed someone
@@ -196,7 +198,37 @@ first, that was your decision, and only you undo it. Those accounts still appear
 in "Not following back" for manual action.
 
 Coming back restarts the clock, so a leave-and-return cannot be used to run out
-the ten weeks.
+the window.
+
+### The window
+
+Ten weeks by default. It is a judgement about how long a follow has to last
+before it counts as sincere, so it is yours to set, from one day to a year.
+
+Change it in the window under History, where the plot shows what has happened
+and the control sets the rule for what happens next. Or from the command line:
+
+```bash
+gitbye --set-grace 6w
+```
+
+Written in weeks or days: `6w`, `45d`, or a bare number of days. Anything
+outside one day to a year is refused rather than quietly clamped, because a
+window of nothing sweeps everyone who ever left and a window of years sweeps
+nobody at all.
+
+The figure lives in PostgreSQL beside the keep-list, so the timer, the command
+line and the window all judge against the same one.
+
+To try a figure without adopting it, pass it to a single run:
+
+```bash
+gitbye --dry-run --grace 6w
+```
+
+That governs the one run and leaves the stored window untouched. Note that the
+rule is applied when the sweep runs, so shortening the window makes accounts
+eligible that were not before. `--dry-run` is how to see that before it acts.
 
 ### What it cannot know
 

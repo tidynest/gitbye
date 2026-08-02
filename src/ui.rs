@@ -17,7 +17,9 @@ use eframe::egui::{
 };
 
 use crate::app::{Action, GitbyeApp, Tab, Tone, View};
-use crate::model::{Event, EventKind, Initiator, Settled, User};
+use crate::model::{
+    Event, EventKind, Initiator, MAX_GRACE, MIN_GRACE, Settled, User, describe_grace,
+};
 use crate::theme;
 use crate::widgets::{self, ROW_HEIGHT, Reciprocity, RowAction};
 
@@ -39,6 +41,7 @@ enum Intent {
     ClearFilter,
     FocusFilter,
     OpenSheet,
+    SetGrace(Duration),
     ShowHistory,
     CloseSheet,
     Run(Action),
@@ -312,7 +315,7 @@ fn field(app: &mut GitbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
         .frame(frame)
         .show(ctx, |ui| {
             if app.view == View::History {
-                history_view(ui, app);
+                history_view(ui, app, intent);
                 return;
             }
 
@@ -530,6 +533,54 @@ fn proceed_button(ui: &mut Ui, count: usize, enabled: bool) -> bool {
     );
 
     response.clicked()
+}
+
+/// The sweep window, with the two steps that change it.
+///
+/// Placed here because this view is where the sweep is reasoned about: the plot
+/// above shows what happened, and this is the rule that decides what happens
+/// next. A step is a week, which is the unit the rule is naturally discussed in,
+/// and the ends are refused rather than silently clamped so that reaching a
+/// limit is visible.
+fn grace_control(ui: &mut Ui, app: &GitbyeApp, intent: &mut Option<Intent>) {
+    let step = Duration::from_secs(7 * 24 * 60 * 60);
+    let shorter = app.grace.saturating_sub(step).max(MIN_GRACE);
+    let longer = app.grace.saturating_add(step).min(MAX_GRACE);
+
+    ui.label(eyebrow("sweep window"));
+    ui.add_space(8.0);
+
+    ui.horizontal(|ui| {
+        let out = ui.add_enabled(
+            app.grace > MIN_GRACE && !app.busy,
+            eframe::egui::Button::new("-"),
+        );
+        if out.clicked() {
+            *intent = Some(Intent::SetGrace(shorter));
+        }
+
+        ui.add_space(10.0);
+        ui.label(strong(describe_grace(app.grace), 15.0, theme::TEXT));
+        ui.add_space(10.0);
+
+        let up = ui.add_enabled(
+            app.grace < MAX_GRACE && !app.busy,
+            eframe::egui::Button::new("+"),
+        );
+        if up.clicked() {
+            *intent = Some(Intent::SetGrace(longer));
+        }
+    });
+
+    ui.add_space(6.0);
+    ui.label(
+        RichText::new(
+            "A follower who leaves within this window, having been followed back, \
+             is unfollowed automatically. Longer windows forgive more.",
+        )
+        .size(12.0)
+        .color(theme::FAINT),
+    );
 }
 
 /// The action sheet.
@@ -839,6 +890,7 @@ fn apply(app: &mut GitbyeApp, ctx: &Context, intent: Option<Intent>) {
         Intent::ClearFilter => app.filter.clear(),
         Intent::FocusFilter => ctx.memory_mut(|memory| memory.request_focus(filter_id())),
         Intent::OpenSheet => app.sheet = true,
+        Intent::SetGrace(window) => app.set_grace(window, ctx),
         Intent::ShowHistory => app.view = View::History,
         Intent::CloseSheet => app.sheet = false,
         Intent::Run(action) => app.run(action, ctx),
@@ -868,7 +920,7 @@ fn apply(app: &mut GitbyeApp, ctx: &Context, intent: Option<Intent>) {
 ///
 /// Two questions, in the order they are usually asked: what is the shape of it,
 /// and then what specifically happened.
-fn history_view(ui: &mut Ui, app: &GitbyeApp) {
+fn history_view(ui: &mut Ui, app: &GitbyeApp, intent: &mut Option<Intent>) {
     ui.label(strong("History", 18.0, theme::TEXT));
     ui.add_space(3.0);
     ui.label(
@@ -881,6 +933,9 @@ fn history_view(ui: &mut Ui, app: &GitbyeApp) {
     widgets::trend(ui, &app.history, 170.0);
     ui.add_space(10.0);
     legend(ui);
+    ui.add_space(20.0);
+
+    grace_control(ui, app, intent);
     ui.add_space(20.0);
 
     ui.label(eyebrow("recent changes"));

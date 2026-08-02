@@ -6,7 +6,7 @@
 //! application observed from beginning to end, and it reports everything it did.
 
 use std::collections::HashSet;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use anyhow::{Context, Result};
 
@@ -83,7 +83,7 @@ impl Report {
 /// store is unavailable. A store failure is fatal here, unlike in the window:
 /// with no keep-list there is no way to know who was meant to be spared, and
 /// nobody is present to notice.
-pub fn run(rehearsal: bool) -> Result<Report> {
+pub fn run(rehearsal: bool, window: Option<Duration>) -> Result<Report> {
     let github = Github::new(github::token()?)?;
     let mut store = Store::connect().context(
         "the sweep will not run without the keep-list, since it cannot ask anybody what to spare",
@@ -97,10 +97,17 @@ pub fn run(rehearsal: bool) -> Result<Report> {
     let updated = attribute(&known, &following, &followers, SystemTime::now());
     store.save_relationships(&updated)?;
 
+    // An explicit window governs this run only. Storing it here would turn
+    // trying a figure out, which --dry-run exists for, into adopting it.
+    let grace = match window {
+        Some(chosen) => chosen,
+        None => store.grace()?,
+    };
+
     let kept: HashSet<i64> = store.keep_list()?.into_iter().collect();
     let still_following: HashSet<i64> = following.iter().map(|user| user.id).collect();
 
-    let candidates = select(&updated, &kept, &still_following);
+    let candidates = select(&updated, &kept, &still_following, grace);
     let exempt = updated
         .iter()
         .filter(|entry| entry.initiator == crate::model::Initiator::Unknown)
@@ -136,11 +143,12 @@ fn select(
     updated: &[Relationship],
     kept: &HashSet<i64>,
     still_following: &HashSet<i64>,
+    grace: Duration,
 ) -> Vec<User> {
     let mut chosen: Vec<User> = updated
         .iter()
         .filter(|entry| still_following.contains(&entry.user_id))
-        .filter(|entry| should_sweep(entry, kept))
+        .filter(|entry| should_sweep(entry, kept, grace))
         .map(|entry| User {
             id: entry.user_id,
             login: entry.login.clone(),
