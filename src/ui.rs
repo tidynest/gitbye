@@ -19,6 +19,7 @@ use eframe::egui::{
 use crate::app::{Action, GitbyeApp, Tab, Tone, View};
 use crate::model::{
     DAY, Event, EventKind, Initiator, MAX_GRACE, MIN_GRACE, Settled, Unit, User, grace_days,
+    recount,
 };
 use crate::theme;
 use crate::widgets::{self, ROW_HEIGHT, Reciprocity, RowAction};
@@ -583,18 +584,28 @@ fn grace_control(ui: &mut Ui, app: &mut GitbyeApp, intent: &mut Option<Intent>) 
             .width(96.0)
             .show_ui(ui, |ui| {
                 for option in Unit::ALL {
-                    ui.selectable_value(&mut unit, option, option.name(app.grace_count));
+                    ui.selectable_value(&mut unit, option, option.name(1));
                 }
             });
-        let reunited = unit != app.grace_unit;
-        app.grace_unit = unit;
+
+        // Picking a unit re-expresses the window rather than reinterpreting the
+        // count, so choosing one to work in never rewrites the rule underneath.
+        // Six weeks becomes forty-two days, not six days, which is what made a
+        // week collapse to a single day on the way to choosing eight of them.
+        let requnited = unit != app.grace_unit;
+        if requnited {
+            let held = DAY * app.grace_count.saturating_mul(app.grace_unit.days());
+            app.grace_count = recount(held, unit).min(ceiling);
+            app.grace_unit = unit;
+        }
 
         // Written once the figure has settled, never mid-drag, or every value
         // passed through on the way would be stored in turn.
         let settled = down.clicked() || up.clicked() || field.drag_stopped() || field.lost_focus();
         let chosen = DAY * app.grace_count.saturating_mul(app.grace_unit.days());
 
-        if (settled || reunited) && chosen != stored && chosen >= MIN_GRACE && chosen <= MAX_GRACE {
+        if (settled || requnited) && chosen != stored && chosen >= MIN_GRACE && chosen <= MAX_GRACE
+        {
             *intent = Some(Intent::SetGrace(chosen));
         }
 

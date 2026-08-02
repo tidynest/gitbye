@@ -5,6 +5,22 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-08-02
+
+### Fixed
+
+- Day counts that are multiples of seven no longer become unreachable. The unit
+  was re-derived from the stored figure after every write, so setting seven days
+  came back as one week and the next step jumped to fourteen, putting eight days
+  out of reach entirely. The unit being edited in is now left alone unless the
+  figure itself changed
+- Choosing a unit converts the window instead of reinterpreting the count beside
+  it. Six weeks becomes forty-two days, not six days. Combined with the above,
+  moving from one week to days had produced one day and stored it immediately,
+  which silently replaced the rule while only a unit was being chosen
+- A conversion never rounds down to nothing, which would have produced a rule
+  that sweeps everybody from a control asked only to change units
+
 ## [0.7.0] - 2026-08-02
 
 ### Added

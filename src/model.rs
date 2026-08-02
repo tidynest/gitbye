@@ -101,6 +101,17 @@ impl Unit {
     }
 }
 
+/// Re-expresses a window as a count of the given unit, to the nearest whole
+/// one and never below one.
+///
+/// Used when a unit is chosen in the interface, so that picking one to work in
+/// converts the window rather than reinterpreting the number beside it.
+#[must_use]
+pub fn recount(window: Duration, unit: Unit) -> u32 {
+    let days = grace_days(window);
+    ((days + unit.days() / 2) / unit.days()).max(1)
+}
+
 /// Expresses a window in the largest unit that divides it exactly.
 ///
 /// Seventy days is ten weeks rather than seventy days, but seventy-one is

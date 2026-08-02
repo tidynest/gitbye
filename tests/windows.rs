@@ -9,7 +9,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use gitbye::model::{
     DAY, DEFAULT_GRACE, Initiator, MAX_GRACE, MIN_GRACE, Relationship, Unit, describe_grace,
-    parse_grace, should_sweep, split_grace,
+    parse_grace, recount, should_sweep, split_grace,
 };
 
 fn origin() -> SystemTime {
@@ -127,4 +127,35 @@ fn the_keep_list_still_outranks_any_window() {
     let kept: HashSet<i64> = [1].into_iter().collect();
 
     assert!(!should_sweep(&brief, &kept, MAX_GRACE));
+}
+
+#[test]
+fn choosing_a_unit_converts_the_window_rather_than_the_number_beside_it() {
+    // Six weeks is forty-two days, not six days. Reinterpreting the count is
+    // what collapsed a week into a single day on the way to choosing eight.
+    assert_eq!(recount(DAY * 42, Unit::Days), 42);
+    assert_eq!(recount(DAY * 42, Unit::Weeks), 6);
+}
+
+#[test]
+fn a_conversion_that_does_not_divide_goes_to_the_nearest_whole_one() {
+    assert_eq!(recount(DAY * 45, Unit::Months), 2);
+    assert_eq!(recount(DAY * 40, Unit::Months), 1);
+}
+
+#[test]
+fn a_conversion_never_lands_on_nothing() {
+    // Rounding a short window down to zero would produce a rule that sweeps
+    // everybody, from a control that was only asked to change units.
+    assert_eq!(recount(DAY, Unit::Years), 1);
+    assert_eq!(recount(DAY * 3, Unit::Weeks), 1);
+}
+
+#[test]
+fn every_day_count_is_reachable_in_days() {
+    // The fault this guards: a window stored as seven days used to be read back
+    // as one week, so the next step went to fourteen and eight was unreachable.
+    for days in 1_u32..=60 {
+        assert_eq!(recount(DAY * days, Unit::Days), days);
+    }
 }

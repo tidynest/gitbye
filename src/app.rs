@@ -16,7 +16,7 @@ use eframe::egui::{Color32, Context};
 use crate::db::Store;
 use crate::github::{Github, SCOPE_FIX};
 use crate::model::{
-    Buckets, DEFAULT_GRACE, Event, Initiator, Msg, Recorded, Snapshot, Unit, User, attribute,
+    Buckets, DAY, DEFAULT_GRACE, Event, Initiator, Msg, Recorded, Snapshot, Unit, User, attribute,
     bucket, describe_grace, recent_events, split_grace,
 };
 use crate::{theme, ui};
@@ -431,6 +431,20 @@ impl GitbyeApp {
         });
     }
 
+    /// Takes on a window read back from the store.
+    ///
+    /// The unit being edited in is left alone when the figure has not actually
+    /// changed. Re-deriving it every time would replace it underneath whoever
+    /// is typing: setting seven days would come back as one week, and the next
+    /// step would jump to fourteen, putting eight days out of reach entirely.
+    fn adopt(&mut self, window: Duration) {
+        let editing = DAY * self.grace_count.saturating_mul(self.grace_unit.days());
+        if editing != window {
+            (self.grace_count, self.grace_unit) = split_grace(window);
+        }
+        self.grace = window;
+    }
+
     /// Stores a new sweep window and reports back what was kept.
     pub(crate) fn set_grace(&mut self, window: Duration, ctx: &Context) {
         let store = Arc::clone(&self.store);
@@ -627,8 +641,7 @@ impl GitbyeApp {
                     self.origins = recorded.origins;
                     self.history = recorded.history;
                     self.events = recorded.events;
-                    self.grace = recorded.grace;
-                    (self.grace_count, self.grace_unit) = split_grace(recorded.grace);
+                    self.adopt(recorded.grace);
                     self.keep = recorded.keep;
                     self.following = following;
                     self.followers = followers;
@@ -638,8 +651,7 @@ impl GitbyeApp {
                     self.synced_at = Some(Instant::now());
                 }
                 Msg::Grace(window) => {
-                    self.grace = window;
-                    (self.grace_count, self.grace_unit) = split_grace(window);
+                    self.adopt(window);
                     self.busy = false;
                     self.toasts.push(Toast {
                         message: format!("Sweep window set to {}.", describe_grace(window)),
