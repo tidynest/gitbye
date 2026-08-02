@@ -132,6 +132,26 @@ install -Dm644 assets/gitbye.desktop ~/.local/share/applications/gitbye.desktop 
 
 Then `gitbye` from a terminal, or GitBye from the launcher.
 
+### A note on launching it
+
+Run it normally. Do not launch it inside a CPU-limited cgroup or at a raised
+nice value alongside heavy work.
+
+Hyprland pings each window and shows "Application Not Responding" after five
+missed replies. An idle GUI needs almost no CPU, but one niced below a running
+compiler and sharing a capped quota with it can miss five pings in a row while
+being perfectly healthy. The dialog is then reporting the throttling, not a bug.
+
+If you want the dialog gone regardless, it is a global Hyprland setting rather
+than a per-window rule (`noanr` is not a valid rule in 0.56):
+
+```
+misc:enable_anr_dialog = false
+```
+
+That silences it for every application, including ones that genuinely hang, so
+it is a blunt instrument.
+
 ## Modes
 
 ```

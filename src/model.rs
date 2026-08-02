@@ -358,11 +358,11 @@ pub enum Msg {
         following: Vec<User>,
         /// Accounts following the user.
         followers: Vec<User>,
-        /// What the store held, or `None` when it could not be read. `None` must
+        /// What the store held, or why it could not be read. `None` must
         /// keep unfollowing disabled, because an empty keep-list and an
         /// unreadable one are indistinguishable in a set difference, and one of
         /// those means unfollowing accounts that were meant to be spared.
-        recorded: Option<Recorded>,
+        recorded: Result<Recorded, String>,
     },
     /// The keep-list after it was changed, so buckets can be recomputed without
     /// another round trip to GitHub.

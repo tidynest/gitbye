@@ -5,6 +5,18 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-08-02
+
+### Fixed
+
+- The database connection is opened from a worker thread on first use rather
+  than during startup. Connecting on the interface thread blocked the first
+  frame, so an unreachable server was indistinguishable from a hung application
+- A database that becomes reachable later is now picked up on the next sync
+  instead of staying unavailable until restart
+- The reason a store failed is carried through to the banner, rather than only
+  the fact that it did
+
 ## [0.5.1] - 2026-08-02
 
 ### Fixed

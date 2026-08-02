@@ -194,6 +194,15 @@ fn with_store<T>(
     let mut guard = store
         .lock()
         .map_err(|_| anyhow!("the store lock was poisoned by an earlier failure"))?;
+
+    // Connected on first use, from a worker thread. Connecting during startup
+    // would block the interface before its first frame, and an unreachable
+    // server would then look exactly like a hung application. Retrying here
+    // also means a database that comes back up is picked up on the next sync
+    // rather than needing a restart.
+    if guard.is_none() {
+        *guard = Some(Store::connect()?);
+    }
     let store = guard.as_mut().context("the keep-list is unavailable")?;
     job(store)
 }
@@ -212,7 +221,7 @@ fn sync_job(github: &Github, store: &Mutex<Option<Store>>) -> Msg {
 
     // A store failure is not fatal. The lists still display, and `None` keeps
     // unfollowing disabled for as long as the keep-list cannot be trusted.
-    let recorded = with_store(store, |store| {
+    let recorded = match with_store(store, |store| {
         store.record_sync(&following, &followers)?;
         // Attribution has to happen on every sync, whoever started it, because
         // a relationship that forms between two syncs is only ever visible as
@@ -230,8 +239,10 @@ fn sync_job(github: &Github, store: &Mutex<Option<Store>>) -> Msg {
             history: store.history()?,
             events: recent_events(&updated, EVENT_LIMIT),
         })
-    })
-    .ok();
+    }) {
+        Ok(recorded) => Ok(recorded),
+        Err(error) => Err(format!("{error:#}")),
+    };
 
     Msg::Synced {
         following,
@@ -310,22 +321,11 @@ impl GitbyeApp {
         theme::apply(&cc.egui_ctx);
         let (tx, rx) = channel();
 
-        let (store, banner) = match Store::connect() {
-            Ok(store) => (Some(store), None),
-            Err(error) => (
-                None,
-                Some(Banner {
-                    message: format!("Keep-list unavailable: {error:#}. Unfollowing is disabled."),
-                    is_error: true,
-                }),
-            ),
-        };
-
         let mut app = Self {
             tab: Tab::Unreciprocated,
             buckets: Buckets::default(),
             selected: HashSet::new(),
-            banner,
+            banner: None,
             progress: None,
             busy: false,
             keep_ready: false,
@@ -342,7 +342,7 @@ impl GitbyeApp {
             followers: Vec::new(),
             keep: Vec::new(),
             github: Arc::new(github),
-            store: Arc::new(Mutex::new(store)),
+            store: Arc::new(Mutex::new(None)),
             tx,
             rx,
         };
@@ -540,7 +540,13 @@ impl GitbyeApp {
                 } => {
                     // An unreadable store is a single fact, so the whole value
                     // is absent rather than each part being separately empty.
-                    self.keep_ready = recorded.is_some();
+                    self.keep_ready = recorded.is_ok();
+                    self.banner = recorded.as_ref().err().map(|reason| Banner {
+                        message: format!(
+                            "Keep-list unavailable: {reason}. Unfollowing is disabled."
+                        ),
+                        is_error: true,
+                    });
                     let recorded = recorded.unwrap_or_default();
                     self.origins = recorded.origins;
                     self.history = recorded.history;
