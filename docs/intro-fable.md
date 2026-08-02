@@ -1,11 +1,26 @@
-# Alternative opening, the fable
+# The fable
 
-The same thing again, with nobody named and nothing technical in it. Useful when
-explaining the application to somebody who does not use the site, and to anybody
-who would rather be told a story than shown a ratio.
+**This is currently the README opening.** It is kept here as well so the four
+openings sit together and can be swapped between without one of them living
+only in git history.
 
-Swap it in by replacing everything in `README.md` from the title down to the
-"What it actually does" heading.
+Nobody is named and nothing technical appears in it, which makes it the version
+to hand to somebody who does not use the site.
+
+There is a recording at
+[audio/magpie-and-the-borrowed-feathers.mp3](audio/magpie-and-the-borrowed-feathers.mp3),
+read by [Piper](https://github.com/rhasspy/piper) using the `en_GB-cori-high`
+voice. To render it again after an edit:
+
+```bash
+piper-tts -m ~/.local/share/piper/en_GB-cori-high.onnx -f fable.wav --sentence_silence 0.45 --length_scale 1.06
+```
+
+Feed it one paragraph per line. Piper phrases per line, so hard-wrapped markdown
+makes it pause at every line break and read like a shopping list.
+
+To swap a different opening in, replace everything in `README.md` from the title
+down to the "What it actually does" heading.
 
 ---
 

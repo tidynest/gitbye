@@ -5,6 +5,22 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-08-02
+
+### Changed
+
+- The README opens with the fable. It explains the behaviour without naming the
+  site, the mechanic or anybody at all, and it states the two rules that matter
+  (a follow kept through the seasons is left alone, and a follow you began is
+  never undone) as things a character decides rather than as configuration
+- The plain opening is preserved in `docs/intro-plain.md` rather than being lost
+  to git history, so all four openings sit together and swap at the same seam
+
+### Added
+
+- A recording of the fable in `docs/audio/`, read by Piper using the
+  `en_GB-cori-high` voice, linked from the README
+
 ## [0.7.2] - 2026-08-02
 
 ### Changed
