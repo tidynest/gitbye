@@ -1,6 +1,11 @@
 # GitBye
 
-[![ci](https://github.com/tidynest/gitbye/actions/workflows/ci.yml/badge.svg)](https://github.com/tidynest/gitbye/actions/workflows/ci.yml)
+<p align="center">
+  <a href="https://github.com/tidynest/gitbye/actions/workflows/ci.yml"><img alt="ci" src="https://img.shields.io/github/actions/workflow/status/tidynest/gitbye/ci.yml?branch=main&style=flat-square&labelColor=1C1A24&label=ci"></a>
+  <a href="https://github.com/tidynest/gitbye/releases"><img alt="release" src="https://img.shields.io/github/v/release/tidynest/gitbye?style=flat-square&labelColor=1C1A24&color=F0B357&label=release"></a>
+  <a href="LICENSE"><img alt="licence" src="https://img.shields.io/badge/licence-MIT-F0B357?style=flat-square&labelColor=1C1A24"></a>
+  <a href="https://www.rust-lang.org"><img alt="rust" src="https://img.shields.io/badge/rust-1.97%2B-F0B357?style=flat-square&labelColor=1C1A24&logo=rust&logoColor=F0B357"></a>
+</p>
 
 <p align="center">
   <img src="assets/magpie.png" alt="A magpie in a fool's cap, caught with the feathers he took back" width="380">
