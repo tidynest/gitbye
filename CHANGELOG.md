@@ -22,6 +22,8 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- An illustration of the magpie above the fable in the README, drawn in ink and
+  cut out to a transparent background so it sits on either GitHub theme
 - `docs/sources-of-truth.md`, naming every authority in the data flow and what
   each is authoritative for, with a test that reads the schema out of the source
   and fails if a table is added without being described
@@ -30,11 +32,6 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - CI checks out with `actions/checkout@v5`, clearing the Node 20 deprecation
   warning on every run
-
-### Added
-
-- An illustration of the magpie above the fable in the README, drawn in ink and
-  cut out to a transparent background so it sits on either GitHub theme
 
 ## [0.8.0] - 2026-08-02
 
