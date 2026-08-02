@@ -3,3 +3,6 @@
 
 # Local environment. Holds DATABASE_URL, never commit it.
 .env
+
+# JetBrains project settings, local to one machine.
+/.idea/

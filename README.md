@@ -1,5 +1,7 @@
 # GitBye
 
+[![ci](https://github.com/tidynest/gitbye/actions/workflows/ci.yml/badge.svg)](https://github.com/tidynest/gitbye/actions/workflows/ci.yml)
+
 <p align="center">
   <img src="assets/magpie.png" alt="A magpie in a fool's cap, caught with the feathers he took back" width="380">
 </p>
@@ -295,6 +297,9 @@ gitbye --version        print the version, then exit
 gitbye --help           usage
 ```
 
+Anything that is not one of these is refused rather than ignored, so a mistyped
+flag says so and exits non-zero instead of quietly opening the window.
+
 ## The unattended sweep
 
 This is the part that deals with the follow-and-run. It unfollows an account
@@ -347,9 +352,6 @@ In the window, the count steps one at a time by button or by drag, and the unit
 sits beside it. Choosing a different unit converts the window rather than
 reinterpreting the count, so six weeks becomes forty-two days rather than six
 days. Every figure between the bounds is reachable.
-
-Anything that is not one of these options is refused rather than ignored, so a
-mistyped flag says so instead of quietly opening the window.
 
 Anything outside one day to five years is refused rather than quietly clamped,
 because a window of nothing sweeps everyone who ever left and a window nothing
@@ -434,6 +436,9 @@ cargo fmt --check && cargo clippy --all-targets && cargo nextest run && cargo de
 
 Clippy runs with `pedantic` denied, so warnings are build failures by design.
 `cargo deny` reads `deny.toml`, which is also what the pre-push gate enforces.
+
+The same four run in CI on every push and pull request, so a commit is verified
+somewhere other than the machine it was written on.
 
 ## Backups
 
