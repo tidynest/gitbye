@@ -6,6 +6,7 @@
 //! application observed from beginning to end, and it reports everything it did.
 
 use std::collections::HashSet;
+use std::hash::BuildHasher;
 use std::time::{Duration, SystemTime};
 
 use anyhow::{Context, Result};
@@ -138,11 +139,14 @@ pub fn run(rehearsal: bool, window: Option<Duration>) -> Result<Report> {
 /// Picks the accounts the rule selects, in a stable order.
 ///
 /// Kept separate from the run so the decision is a pure function of recorded
-/// state, with no network or clock of its own.
-fn select(
+/// state, with no network or clock of its own. Public for the same reason: this
+/// is the code that decides who gets unfollowed unattended, so it is the code
+/// the tests most need to reach.
+#[must_use]
+pub fn select<K: BuildHasher, F: BuildHasher>(
     updated: &[Relationship],
-    kept: &HashSet<i64>,
-    still_following: &HashSet<i64>,
+    kept: &HashSet<i64, K>,
+    still_following: &HashSet<i64, F>,
     grace: Duration,
 ) -> Vec<User> {
     let mut chosen: Vec<User> = updated

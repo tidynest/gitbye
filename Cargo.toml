@@ -1,9 +1,13 @@
 [package]
 name = "gitbye"
-version = "0.7.3"
+version = "0.8.0"
 edition = "2024"
 rust-version = "1.97"
-description = "Compare GitHub followers against following, and unfollow the accounts that never reciprocated"
+description = "Notices the accounts that follow you, collect the follow-back, then quietly leave, and takes your follow back"
+repository = "https://github.com/tidynest/gitbye"
+readme = "README.md"
+keywords = ["github", "followers", "unfollow", "egui", "postgresql"]
+categories = ["command-line-utilities", "gui"]
 license = "MIT"
 publish = false
 

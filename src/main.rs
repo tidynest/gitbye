@@ -29,8 +29,49 @@ enum Mode {
     },
     SetGrace(Duration),
     Help,
+    Version,
     /// The arguments did not make sense, and this says why.
     Complaint(String),
+}
+
+/// Options that stand on their own.
+const BARE: [&str; 6] = ["--help", "-h", "--version", "-V", "--sweep", "--dry-run"];
+
+/// Options that take a value, written either as `--flag value` or `--flag=value`.
+const VALUED: [&str; 2] = ["--grace", "--set-grace"];
+
+/// The first argument that is not an option this program knows, if any.
+///
+/// Unknown arguments used to be ignored, which meant a mistyped flag opened the
+/// window rather than saying anything. For a program that unfollows people
+/// unattended, silently doing something other than what was asked is the worst
+/// available response to a typo.
+fn unknown(arguments: &[String]) -> Option<String> {
+    let mut expecting_value = false;
+
+    for argument in arguments {
+        if expecting_value {
+            expecting_value = false;
+            continue;
+        }
+
+        let name = argument
+            .split_once('=')
+            .map_or(argument.as_str(), |(name, _)| name);
+
+        if BARE.contains(&name) {
+            continue;
+        }
+        if VALUED.contains(&name) {
+            // A joined form carries its own value, so the next argument is not one.
+            expecting_value = !argument.contains('=');
+            continue;
+        }
+
+        return Some(argument.clone());
+    }
+
+    None
 }
 
 /// The value given to a flag, written either as `--flag value` or `--flag=value`.
@@ -54,6 +95,12 @@ fn mode() -> Mode {
 
     if has("--help") || has("-h") {
         return Mode::Help;
+    }
+    if has("--version") || has("-V") {
+        return Mode::Version;
+    }
+    if let Some(stray) = unknown(&arguments) {
+        return Mode::Complaint(format!("unrecognised argument '{stray}'. Try --help"));
     }
 
     if let Some(spec) = value_of(&arguments, "--set-grace") {
@@ -95,11 +142,13 @@ gitbye - compare GitHub followers against following
     gitbye --dry-run        say what --sweep would do, changing nothing
     gitbye --grace 6w       judge this run against a different window
     gitbye --set-grace 6w   change the stored window, then exit
+    gitbye --version        print the version, then exit
     gitbye --help           this
 
-A window is written in weeks or days: 6w, 45d, or a bare number of days. It may
-be anything from 1 day to 365 days. --grace governs one run and leaves the
-stored window alone, so a figure can be tried with --dry-run before adopting it.
+A window is written in days, weeks, months or years: 45d, 6w, 3m, 1y, or a bare
+number of days. A month is 30 days and a year is 365. It may be anything from
+1 day to 5 years. --grace governs one run and leaves the stored window alone, so
+a figure can be tried with --dry-run before adopting it.
 
 The sweep unfollows accounts that followed you, were followed back, and left
 within the window. It never touches a follow you began, an account on the
@@ -119,6 +168,10 @@ fn run() -> Result<ExitCode> {
     match mode() {
         Mode::Help => {
             println!("{USAGE}");
+            Ok(ExitCode::SUCCESS)
+        }
+        Mode::Version => {
+            println!("gitbye {}", env!("CARGO_PKG_VERSION"));
             Ok(ExitCode::SUCCESS)
         }
         Mode::Complaint(reason) => {

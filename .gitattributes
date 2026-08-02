@@ -1,0 +1,4 @@
+*.mp3 binary
+*.ttf binary
+*.wav binary
+*.svg text eol=lf

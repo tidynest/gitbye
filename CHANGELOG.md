@@ -5,6 +5,34 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-02
+
+### Added
+
+- `--version`, which did not exist
+- A licence file. The manifest had claimed MIT while the repository granted
+  nothing, which is a contradiction rather than a permission
+- Continuous integration running formatting, clippy, the tests and the
+  dependency audit, so a commit is verified somewhere other than one laptop
+- Tests for `select`, the function that decides who the unattended sweep
+  unfollows. It had none. They pin down every case that must never be selected:
+  somebody you no longer follow, somebody on the keep-list, a follow you began,
+  a relationship predating the record, and anyone who stayed past the window
+
+### Fixed
+
+- Unrecognised arguments are refused instead of ignored. `gitbye --version` used
+  to open the window, and so would any mistyped flag, which is the worst
+  available answer to a typo in a program that unfollows people unattended
+- The usage text described the old window syntax, offering weeks and days only
+  and a limit of 365 days
+
+### Changed
+
+- The package description matched the wording removed from the README in 0.7.2
+- The manifest gained `repository`, `readme`, `keywords` and `categories`
+- `select` is public so the tests can reach it, and generic over its hashers
+
 ## [0.7.3] - 2026-08-02
 
 ### Changed

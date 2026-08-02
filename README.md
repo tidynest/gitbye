@@ -287,6 +287,7 @@ gitbye --sweep          run the unattended rule once, then exit
 gitbye --dry-run        say what --sweep would do, changing nothing
 gitbye --grace 6w       judge this run against a different window
 gitbye --set-grace 6w   change the stored window, then exit
+gitbye --version        print the version, then exit
 gitbye --help           usage
 ```
 
@@ -342,6 +343,9 @@ In the window, the count steps one at a time by button or by drag, and the unit
 sits beside it. Choosing a different unit converts the window rather than
 reinterpreting the count, so six weeks becomes forty-two days rather than six
 days. Every figure between the bounds is reachable.
+
+Anything that is not one of these options is refused rather than ignored, so a
+mistyped flag says so instead of quietly opening the window.
 
 Anything outside one day to five years is refused rather than quietly clamped,
 because a window of nothing sweeps everyone who ever left and a window nothing
@@ -435,3 +439,7 @@ destroy the safety net. That directory documents how to take a fresh snapshot an
 how to restore from one.
 
 Take a snapshot before any bulk unfollow you are unsure about.
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).
