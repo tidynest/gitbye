@@ -1,5 +1,9 @@
 # GitBye
 
+<p align="center">
+  <img src="assets/magpie.png" alt="A magpie in a fool's cap, caught with the feathers he took back" width="380">
+</p>
+
 ## The Magpie and the Borrowed Feathers
 
 In the wood there was an old and pleasant custom. When one bird thought well of

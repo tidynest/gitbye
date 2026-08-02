@@ -5,6 +5,11 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- An illustration of the magpie above the fable in the README, drawn in ink and
+  cut out to a transparent background so it sits on either GitHub theme
+
 ## [0.8.0] - 2026-08-02
 
 ### Added
