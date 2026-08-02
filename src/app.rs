@@ -16,8 +16,8 @@ use eframe::egui::{Color32, Context};
 use crate::db::Store;
 use crate::github::{Github, SCOPE_FIX};
 use crate::model::{
-    Buckets, DEFAULT_GRACE, Event, Initiator, Msg, Recorded, Snapshot, User, attribute, bucket,
-    describe_grace, recent_events,
+    Buckets, DEFAULT_GRACE, Event, Initiator, Msg, Recorded, Snapshot, Unit, User, attribute,
+    bucket, describe_grace, recent_events, split_grace,
 };
 use crate::{theme, ui};
 
@@ -333,6 +333,12 @@ pub struct GitbyeApp {
     pub(crate) permits: Permits,
     /// How long a follow must last before the sweep treats it as sincere.
     pub(crate) grace: Duration,
+    /// The window being edited, as a count and the unit it is counted in. Held
+    /// apart from [`Self::grace`] so a value can be typed or dragged through
+    /// without every intermediate figure being written to the store.
+    pub(crate) grace_count: u32,
+    /// The unit [`Self::grace_count`] is counted in.
+    pub(crate) grace_unit: Unit,
     /// Free-text filter applied to the visible bucket.
     pub(crate) filter: String,
     /// Whether the action sheet is open.
@@ -377,6 +383,8 @@ impl GitbyeApp {
             progress: None,
             busy: false,
             grace: DEFAULT_GRACE,
+            grace_count: split_grace(DEFAULT_GRACE).0,
+            grace_unit: split_grace(DEFAULT_GRACE).1,
             permits: Permits {
                 keep: false,
                 // Assumed until the first sync reports otherwise, so the
@@ -620,6 +628,7 @@ impl GitbyeApp {
                     self.history = recorded.history;
                     self.events = recorded.events;
                     self.grace = recorded.grace;
+                    (self.grace_count, self.grace_unit) = split_grace(recorded.grace);
                     self.keep = recorded.keep;
                     self.following = following;
                     self.followers = followers;
@@ -630,6 +639,7 @@ impl GitbyeApp {
                 }
                 Msg::Grace(window) => {
                     self.grace = window;
+                    (self.grace_count, self.grace_unit) = split_grace(window);
                     self.busy = false;
                     self.toasts.push(Toast {
                         message: format!("Sweep window set to {}.", describe_grace(window)),

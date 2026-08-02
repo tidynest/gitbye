@@ -213,10 +213,19 @@ and the control sets the rule for what happens next. Or from the command line:
 gitbye --set-grace 6w
 ```
 
-Written in weeks or days: `6w`, `45d`, or a bare number of days. Anything
-outside one day to a year is refused rather than quietly clamped, because a
-window of nothing sweeps everyone who ever left and a window of years sweeps
-nobody at all.
+Written in days, weeks, months or years: `45d`, `6w`, `3m`, `1y`, or a bare
+number of days. A month is thirty days and a year is three hundred and
+sixty-five, stated here because neither is a fixed length and the window is a
+rule of thumb rather than a date.
+
+In the window, the count steps one at a time by button or by drag, and the unit
+sits beside it. Changing the unit keeps the count and reinterprets it, so six
+days becomes six weeks. Every figure between the bounds is reachable, rather
+than only the multiples of some fixed step.
+
+Anything outside one day to five years is refused rather than quietly clamped,
+because a window of nothing sweeps everyone who ever left and a window nothing
+can fall inside disables the sweep without saying so.
 
 The figure lives in PostgreSQL beside the keep-list, so the timer, the command
 line and the window all judge against the same one.

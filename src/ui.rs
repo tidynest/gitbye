@@ -11,14 +11,14 @@
 use std::time::{Duration, SystemTime};
 
 use eframe::egui::{
-    Align, Align2, Area, Color32, Context, CornerRadius, FontFamily, FontId, Frame, Id, Key,
-    Layout, Margin, Modal, Order, Rect, RichText, ScrollArea, Sense, SidePanel, Stroke, TextEdit,
-    TopBottomPanel, Ui, UiBuilder, Vec2, pos2, vec2,
+    Align, Align2, Area, Button, Color32, Context, CornerRadius, DragValue, FontFamily, FontId,
+    Frame, Id, Key, Layout, Margin, Modal, Order, Rect, RichText, ScrollArea, Sense, SidePanel,
+    Stroke, TextEdit, TopBottomPanel, Ui, UiBuilder, Vec2, pos2, vec2,
 };
 
 use crate::app::{Action, GitbyeApp, Tab, Tone, View};
 use crate::model::{
-    Event, EventKind, Initiator, MAX_GRACE, MIN_GRACE, Settled, User, describe_grace,
+    DAY, Event, EventKind, Initiator, MAX_GRACE, MIN_GRACE, Settled, Unit, User, grace_days,
 };
 use crate::theme;
 use crate::widgets::{self, ROW_HEIGHT, Reciprocity, RowAction};
@@ -535,41 +535,75 @@ fn proceed_button(ui: &mut Ui, count: usize, enabled: bool) -> bool {
     response.clicked()
 }
 
-/// The sweep window, with the two steps that change it.
+/// The sweep window: a count and the unit it is counted in.
 ///
 /// Placed here because this view is where the sweep is reasoned about: the plot
 /// above shows what happened, and this is the rule that decides what happens
-/// next. A step is a week, which is the unit the rule is naturally discussed in,
-/// and the ends are refused rather than silently clamped so that reaching a
-/// limit is visible.
-fn grace_control(ui: &mut Ui, app: &GitbyeApp, intent: &mut Option<Intent>) {
-    let step = Duration::from_secs(7 * 24 * 60 * 60);
-    let shorter = app.grace.saturating_sub(step).max(MIN_GRACE);
-    let longer = app.grace.saturating_add(step).min(MAX_GRACE);
+/// next.
+///
+/// The count moves one at a time, by button or by drag, so every figure in
+/// range is reachable rather than only the multiples of some fixed step.
+/// Changing the unit keeps the count and reinterprets it, which is how a value
+/// and its unit normally behave: six days becomes six weeks, not a rounding of
+/// six days into weeks.
+fn grace_control(ui: &mut Ui, app: &mut GitbyeApp, intent: &mut Option<Intent>) {
+    let stored = app.grace;
+    let live = !app.busy;
+    let per = app.grace_unit.days();
+    let ceiling = (grace_days(MAX_GRACE) / per).max(1);
+    let floor = 1;
 
     ui.label(eyebrow("sweep window"));
     ui.add_space(8.0);
 
     ui.horizontal(|ui| {
-        let out = ui.add_enabled(
-            app.grace > MIN_GRACE && !app.busy,
-            eframe::egui::Button::new("-"),
-        );
-        if out.clicked() {
-            *intent = Some(Intent::SetGrace(shorter));
+        let down = ui.add_enabled(live && app.grace_count > floor, Button::new("-"));
+        if down.clicked() {
+            app.grace_count -= 1;
         }
 
-        ui.add_space(10.0);
-        ui.label(strong(describe_grace(app.grace), 15.0, theme::TEXT));
-        ui.add_space(10.0);
-
-        let up = ui.add_enabled(
-            app.grace < MAX_GRACE && !app.busy,
-            eframe::egui::Button::new("+"),
+        ui.add_space(8.0);
+        let field = ui.add_enabled(
+            live,
+            DragValue::new(&mut app.grace_count)
+                .range(floor..=ceiling)
+                .speed(0.15),
         );
+        ui.add_space(8.0);
+
+        let up = ui.add_enabled(live && app.grace_count < ceiling, Button::new("+"));
         if up.clicked() {
-            *intent = Some(Intent::SetGrace(longer));
+            app.grace_count += 1;
         }
+
+        ui.add_space(12.0);
+        let mut unit = app.grace_unit;
+        eframe::egui::ComboBox::from_id_salt("grace-unit")
+            .selected_text(unit.name(app.grace_count))
+            .width(96.0)
+            .show_ui(ui, |ui| {
+                for option in Unit::ALL {
+                    ui.selectable_value(&mut unit, option, option.name(app.grace_count));
+                }
+            });
+        let reunited = unit != app.grace_unit;
+        app.grace_unit = unit;
+
+        // Written once the figure has settled, never mid-drag, or every value
+        // passed through on the way would be stored in turn.
+        let settled = down.clicked() || up.clicked() || field.drag_stopped() || field.lost_focus();
+        let chosen = DAY * app.grace_count.saturating_mul(app.grace_unit.days());
+
+        if (settled || reunited) && chosen != stored && chosen >= MIN_GRACE && chosen <= MAX_GRACE {
+            *intent = Some(Intent::SetGrace(chosen));
+        }
+
+        ui.add_space(12.0);
+        ui.label(
+            RichText::new(format!("{} in all", plural_days(grace_days(chosen))))
+                .size(12.0)
+                .color(theme::FAINT),
+        );
     });
 
     ui.add_space(6.0);
@@ -581,6 +615,14 @@ fn grace_control(ui: &mut Ui, app: &GitbyeApp, intent: &mut Option<Intent>) {
         .size(12.0)
         .color(theme::FAINT),
     );
+}
+
+/// A day count with its noun, so the total reads as a sentence.
+fn plural_days(days: u32) -> String {
+    match days {
+        1 => "1 day".to_owned(),
+        _ => format!("{days} days"),
+    }
 }
 
 /// The action sheet.
@@ -920,7 +962,7 @@ fn apply(app: &mut GitbyeApp, ctx: &Context, intent: Option<Intent>) {
 ///
 /// Two questions, in the order they are usually asked: what is the shape of it,
 /// and then what specifically happened.
-fn history_view(ui: &mut Ui, app: &GitbyeApp, intent: &mut Option<Intent>) {
+fn history_view(ui: &mut Ui, app: &mut GitbyeApp, intent: &mut Option<Intent>) {
     ui.label(strong("History", 18.0, theme::TEXT));
     ui.add_space(3.0);
     ui.label(

@@ -5,6 +5,30 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-02
+
+### Added
+
+- Windows can be written and adjusted in days, weeks, months or years, on the
+  command line and in the window. A month is thirty days and a year is three
+  hundred and sixty-five, stated rather than left to a calendar, because the
+  window is a rule of thumb about sincerity and not a date
+- The count is a value that can be typed or dragged, with steps of one, so every
+  figure in range is reachable
+
+### Changed
+
+- The control stepped a whole week at a time, which put every figure that was
+  not a multiple of seven out of reach of the buttons. It now moves one unit at
+  a time, and the unit is chosen beside it
+- Changing the unit keeps the count and reinterprets it, so six days becomes six
+  weeks. That is how a value and its unit normally behave
+- A window is named in the largest unit that divides it exactly, so ninety days
+  reads as three months while seventy-one stays in days rather than being
+  rounded into a figure the rule is not using
+- The upper bound is five years rather than one, since years are now offered. A
+  bound still exists so a stray keystroke cannot disable the sweep in silence
+
 ## [0.6.1] - 2026-08-02
 
 ### Fixed

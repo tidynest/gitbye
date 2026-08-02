@@ -11,7 +11,13 @@ use std::time::{Duration, SystemTime};
 use serde::Deserialize;
 
 /// A day, the unit every window is a whole number of.
-const DAY: Duration = Duration::from_secs(24 * 60 * 60);
+pub const DAY: Duration = Duration::from_secs(24 * 60 * 60);
+
+/// A window counted in whole days, which is how it is edited and stored.
+#[must_use]
+pub fn grace_days(window: Duration) -> u32 {
+    u32::try_from(window.as_secs() / DAY.as_secs()).unwrap_or(u32::MAX)
+}
 
 /// How long a new follower has to keep following before their follow is treated
 /// as sincere, until it is set to something else.
@@ -24,10 +30,92 @@ pub const DEFAULT_GRACE: Duration = Duration::from_secs(10 * 7 * 24 * 60 * 60);
 /// from anyone who ever left, however briefly, which is not a grace period.
 pub const MIN_GRACE: Duration = DAY;
 
-/// Longest window that may be set. Past a year the rule stops being a grace
-/// period and quietly stops selecting anybody, which is better refused than
-/// accepted in silence.
-pub const MAX_GRACE: Duration = Duration::from_secs(365 * 24 * 60 * 60);
+/// Longest window that may be set. Far past any honest grace period, but a
+/// bound still exists so an accidental keystroke cannot quietly disable the
+/// sweep by setting a window nothing can fall inside.
+pub const MAX_GRACE: Duration = Duration::from_secs(5 * 365 * 24 * 60 * 60);
+
+/// A unit a window may be written and adjusted in.
+///
+/// Months and years are not fixed lengths, so they are defined here rather than
+/// left to a calendar: a month is thirty days and a year is three hundred and
+/// sixty-five. The window is a rule of thumb about sincerity, not a date, so an
+/// approximation is honest as long as it is stated.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Unit {
+    /// One day.
+    Days,
+    /// Seven days.
+    Weeks,
+    /// Thirty days.
+    Months,
+    /// Three hundred and sixty-five days.
+    Years,
+}
+
+impl Unit {
+    /// Largest first, which is the order they are offered in.
+    pub const ALL: [Self; 4] = [Self::Days, Self::Weeks, Self::Months, Self::Years];
+
+    /// How many days one of this unit is worth.
+    #[must_use]
+    pub fn days(self) -> u32 {
+        match self {
+            Self::Days => 1,
+            Self::Weeks => 7,
+            Self::Months => 30,
+            Self::Years => 365,
+        }
+    }
+
+    /// The letter it is written with on the command line.
+    #[must_use]
+    pub fn suffix(self) -> char {
+        match self {
+            Self::Days => 'd',
+            Self::Weeks => 'w',
+            Self::Months => 'm',
+            Self::Years => 'y',
+        }
+    }
+
+    /// Reads the letter back. Anything else is not a unit.
+    #[must_use]
+    pub fn from_suffix(letter: char) -> Option<Self> {
+        Self::ALL.into_iter().find(|unit| unit.suffix() == letter)
+    }
+
+    /// Its name, singular or plural to match the count.
+    #[must_use]
+    pub fn name(self, count: u32) -> &'static str {
+        match (self, count) {
+            (Self::Days, 1) => "day",
+            (Self::Days, _) => "days",
+            (Self::Weeks, 1) => "week",
+            (Self::Weeks, _) => "weeks",
+            (Self::Months, 1) => "month",
+            (Self::Months, _) => "months",
+            (Self::Years, 1) => "year",
+            (Self::Years, _) => "years",
+        }
+    }
+}
+
+/// Expresses a window in the largest unit that divides it exactly.
+///
+/// Seventy days is ten weeks rather than seventy days, but seventy-one is
+/// seventy-one days, because rounding it would misstate the rule being applied.
+#[must_use]
+pub fn split_grace(window: Duration) -> (u32, Unit) {
+    let days = grace_days(window);
+    let chosen = Unit::ALL
+        .into_iter()
+        .rev()
+        .find(|unit| days >= unit.days() && days.is_multiple_of(unit.days()))
+        .unwrap_or(Unit::Days);
+
+    (days / chosen.days(), chosen)
+}
 
 /// Reads a sweep window written as weeks or days: `6w`, `45d`, or a bare number
 /// of days.
@@ -38,18 +126,18 @@ pub const MAX_GRACE: Duration = Duration::from_secs(365 * 24 * 60 * 60);
 /// when it falls outside [`MIN_GRACE`] and [`MAX_GRACE`].
 pub fn parse_grace(spec: &str) -> Result<Duration, String> {
     let text = spec.trim().to_lowercase();
-    let (digits, unit) = match text.strip_suffix(['w', 'd']) {
-        Some(digits) => (digits, text.as_bytes()[text.len() - 1]),
-        None => (text.as_str(), b'd'),
+    let last = text.chars().last().unwrap_or(' ');
+    let (digits, unit) = match Unit::from_suffix(last) {
+        Some(unit) => (&text[..text.len() - 1], unit),
+        None => (text.as_str(), Unit::Days),
     };
 
     let count: u32 = digits
         .trim()
         .parse()
-        .map_err(|_| format!("'{spec}' is not a window. Write it as 6w or 45d"))?;
+        .map_err(|_| format!("'{spec}' is not a window. Write it as 6w, 45d, 3m or 1y"))?;
 
-    let days = if unit == b'w' { count * 7 } else { count };
-    let window = DAY * days;
+    let window = DAY * count.saturating_mul(unit.days());
 
     if window < MIN_GRACE || window > MAX_GRACE {
         return Err(format!(
@@ -63,22 +151,11 @@ pub fn parse_grace(spec: &str) -> Result<Duration, String> {
     Ok(window)
 }
 
-/// Names a window the way it was most likely meant, in weeks where it divides
-/// evenly and in days otherwise.
+/// Names a window in the largest unit that divides it exactly.
 #[must_use]
 pub fn describe_grace(window: Duration) -> String {
-    let days = window.as_secs() / DAY.as_secs();
-    // Nothing divides evenly by a week, so guard it before the weeks case or a
-    // refusal reads as "0 weeks", which sounds like a rounding rather than none.
-    let (count, noun) = match (days, days % 7) {
-        (0, _) => (0, "day"),
-        (_, 0) => (days / 7, "week"),
-        _ => (days, "day"),
-    };
-    match count {
-        1 => format!("1 {noun}"),
-        _ => format!("{count} {noun}s"),
-    }
+    let (count, unit) = split_grace(window);
+    format!("{count} {}", unit.name(count))
 }
 
 /// Who moved first.
