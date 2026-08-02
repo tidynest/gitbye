@@ -87,28 +87,29 @@ sudo systemctl enable --now postgresql
 sudo -iu postgres createuser --superuser "$USER"
 ```
 
-Create the database and point the application at it:
+Create the database:
 
 ```bash
 createdb gitbye
 ```
 
+That is the whole setup. The application looks for `postgresql:///gitbye` unless
+told otherwise, which uses the local unix socket and peer authentication, so no
+password is stored anywhere and nothing needs exporting.
+
+Set `DATABASE_URL` only to point somewhere else:
+
 ```bash
-export DATABASE_URL="postgresql:///gitbye"
+export DATABASE_URL="postgresql://user@host/other"
 ```
 
-That connection string uses the local unix socket and peer authentication, so no
-password is stored anywhere. Put the export in your shell profile to make it
-permanent.
+Note that an exported variable reaches the application only when it is started
+from a shell that has it. A launcher entry inherits no shell environment, which
+is exactly why the default exists.
 
 Tables are created on first run. There is no migration step.
 
-If the banner reports `DATABASE_URL is not set` even though you exported it,
-check whether the terminal you launched from predates the export. A shell reads
-`~/.zshrc` once, at startup, so an older terminal never sees a line added later.
-Open a new one, or `source ~/.zshrc`.
-
-If `DATABASE_URL` is unset or the server is unreachable, the application still
+If the server is unreachable, the application still
 starts and every list still works, but unfollowing is disabled. An empty
 keep-list and an unloadable keep-list look identical in a set difference, and one
 of those means unfollowing accounts that were meant to be spared.

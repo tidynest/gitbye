@@ -5,6 +5,24 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-08-02
+
+### Fixed
+
+- The store is found without `DATABASE_URL` being set. It defaults to
+  `postgresql:///gitbye`, the local socket and this application's own database,
+  which is what the setup steps asked everyone to export anyway. A launcher
+  entry inherits no shell environment, so starting from the desktop had left the
+  keep-list unreadable and unfollowing withheld, while the same build worked
+  from a terminal
+
+### Changed
+
+- `DATABASE_URL` is now an override for pointing elsewhere rather than a
+  requirement, and the setup steps lost a step
+- A connection failure names the address it tried, which an unset variable
+  never did
+
 ## [0.6.0] - 2026-08-02
 
 ### Added

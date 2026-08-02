@@ -6,14 +6,23 @@
 use std::env;
 use std::time::{Duration, SystemTime};
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use postgres::types::ToSql;
 use postgres::{Client, Config, NoTls, Transaction};
 
 use crate::model::{DEFAULT_GRACE, Initiator, Relationship, Snapshot, User};
 
-/// Environment variable holding the connection string.
+/// Environment variable holding the connection string, when one is set.
 pub const URL_VAR: &str = "DATABASE_URL";
+
+/// Where the store is looked for when nothing says otherwise: this
+/// application's own database, over the local socket.
+///
+/// A launcher entry inherits no shell environment, so requiring the variable
+/// meant the application worked from a terminal and refused from the desktop,
+/// with a keep-list that could not be read and unfollowing withheld. The
+/// default is exactly what the setup steps asked everyone to export.
+pub const DEFAULT_URL: &str = "postgresql:///gitbye";
 
 /// Key the sweep window is stored under.
 const GRACE_KEY: &str = "sweep_window_seconds";
@@ -96,24 +105,20 @@ pub struct Store {
 }
 
 impl Store {
-    /// Connects using `DATABASE_URL` and applies the schema.
+    /// Connects using `DATABASE_URL`, or [`DEFAULT_URL`] when it is unset, and
+    /// applies the schema.
     ///
     /// # Errors
     ///
-    /// Fails when `DATABASE_URL` is unset, when the server cannot be reached, or
-    /// when the schema cannot be applied. Any of those leaves the keep-list
-    /// unavailable, which the caller must treat as a reason to disable
-    /// unfollowing.
+    /// Fails when the server cannot be reached or the schema cannot be applied.
+    /// Either leaves the keep-list unavailable, which the caller must treat as a
+    /// reason to disable unfollowing.
     pub fn connect() -> Result<Self> {
-        // Deliberately not `with_context`, whose source would append a bare
-        // "environment variable not found" and leave the banner reading as two
-        // half sentences joined by a colon.
-        let url = env::var(URL_VAR)
-            .map_err(|_| anyhow!("{URL_VAR} is not set. See the README for the setup steps"))?;
+        let url = env::var(URL_VAR).unwrap_or_else(|_| DEFAULT_URL.to_owned());
 
-        let client = connection_config(&url)?
-            .connect(NoTls)
-            .with_context(|| format!("could not connect to PostgreSQL using {URL_VAR}"))?;
+        let client = connection_config(&url)?.connect(NoTls).with_context(|| {
+            format!("could not connect to PostgreSQL at {url}. See the README for the setup steps")
+        })?;
 
         let mut store = Self { client };
         store
