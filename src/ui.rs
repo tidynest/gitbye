@@ -687,9 +687,17 @@ fn toasts(app: &GitbyeApp, ctx: &Context, intent: &mut Option<Intent>) {
         return;
     }
 
+    // Positioned inside the content region rather than against the window, so
+    // it floats clear of the action bar instead of on top of it. Anchored to the
+    // window it covered Proceed, and a failure stays for twenty seconds, so the
+    // interface read as having seized up when it was only obscured. The region
+    // excludes the panels, so this follows them if they ever change size.
+    let content = ctx.available_rect();
+
     Area::new(Id::new("toasts"))
         .order(Order::Foreground)
-        .anchor(Align2::RIGHT_BOTTOM, vec2(-20.0, -20.0))
+        .fixed_pos(content.right_bottom() - vec2(20.0, 20.0))
+        .pivot(Align2::RIGHT_BOTTOM)
         .show(ctx, |ui| {
             ui.with_layout(Layout::bottom_up(Align::Max), |ui| {
                 for (index, toast) in app.toasts.iter().enumerate() {

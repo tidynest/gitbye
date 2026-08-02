@@ -5,6 +5,18 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-08-02
+
+### Fixed
+
+- Toasts no longer cover the action bar. They were anchored to the window's
+  bottom-right corner, which put them directly on top of Proceed, and a failure
+  stays on screen for twenty seconds. The interface was still responding
+  throughout, but the one control worth reaching was underneath the report of
+  what had just happened, which reads as the application having seized up
+- They are now placed inside the content region, which excludes the panels, so
+  they float above the action bar and follow it if it ever changes height
+
 ## [0.5.4] - 2026-08-02
 
 ### Added
