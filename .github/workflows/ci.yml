@@ -16,7 +16,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # eframe links against the system windowing and input libraries even for a
       # check, so they are needed before anything compiles.

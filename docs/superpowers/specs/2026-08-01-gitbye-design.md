@@ -1,3 +1,10 @@
+> **Historical.** This records the design as it stood at 0.1.0, on the day the
+> work started, and is kept because it explains why the early decisions were
+> taken. It is not maintained. Much of it has since been superseded: the sweep
+> window is configurable, the store is found without `DATABASE_URL`, and the
+> interface has changed considerably. For current behaviour read the README and
+> the CHANGELOG.
+
 # gitbye: design
 
 Date: 2026-08-01

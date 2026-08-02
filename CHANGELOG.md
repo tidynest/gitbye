@@ -5,6 +5,32 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-08-02
+
+### Changed
+
+- New icon: the magpie of the fable, black on gold. The previous heart and skull
+  is kept in `assets/alternates/`. Gold rather than the application's own
+  charcoal because an icon is judged at sixteen pixels against an unknown
+  background, and a dark bird on a dark ground is not there at all. A feather in
+  the beak was tried and dropped: below about thirty-two pixels it degraded into
+  a smudge beside the bird
+- Raster icons are installed alongside the scalable one, for launchers that
+  prefer not to rasterise an SVG themselves
+- The design document from the first day is marked historical rather than left
+  looking current, since it still announced itself as 0.1.0
+
+### Added
+
+- `docs/sources-of-truth.md`, naming every authority in the data flow and what
+  each is authoritative for, with a test that reads the schema out of the source
+  and fails if a table is added without being described
+
+### Fixed
+
+- CI checks out with `actions/checkout@v5`, clearing the Node 20 deprecation
+  warning on every run
+
 ### Added
 
 - An illustration of the magpie above the fable in the README, drawn in ink and

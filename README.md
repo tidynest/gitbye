@@ -440,6 +440,13 @@ Clippy runs with `pedantic` denied, so warnings are build failures by design.
 The same four run in CI on every push and pull request, so a commit is verified
 somewhere other than the machine it was written on.
 
+## Where the truth lives
+
+[docs/sources-of-truth.md](docs/sources-of-truth.md) names every authority in the
+data flow and what each is authoritative for. A test reads the schema out of the
+source and fails if a table exists that the document does not describe, so it
+cannot quietly go out of date.
+
 ## Backups
 
 Read-only snapshots of the follow graph live in `../gitbye-backups/`,
