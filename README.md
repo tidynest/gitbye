@@ -426,6 +426,12 @@ cargo run --release
 cargo nextest run
 ```
 
+The store tests need PostgreSQL running. Each creates a scratch database named
+`gitbye_test_*` and drops it afterwards, so they never touch the real keep-list.
+Without a server they report that and pass, so the suite still runs on a machine
+without one. CI provides a server and fails if that skip ever happens there,
+which is what stops the skip becoming permanent.
+
 ## Before committing
 
 All four must be clean:

@@ -15,6 +15,25 @@ env:
 jobs:
   check:
     runs-on: ubuntu-latest
+
+    # The store tests skip themselves when no server is reachable, which would
+    # make them worthless here. This is what stops that skip being permanent.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+
     steps:
       - uses: actions/checkout@v5
 
@@ -45,6 +64,15 @@ jobs:
 
       - name: Tests
         run: cargo nextest run
+
+      # A skip here would look identical to a pass, so the run is checked for
+      # the line the store tests print when they find no server.
+      - name: Prove the store tests were not skipped
+        run: |
+          if cargo nextest run --no-capture -E 'test(/store/)' 2>&1 | grep -q 'skipping'; then
+            echo "store tests skipped: no database was reachable"
+            exit 1
+          fi
 
       # Reads deny.toml, which is also what the pre-push gate enforces, so a
       # advisory that appears upstream is caught here rather than at push time.

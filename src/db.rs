@@ -115,8 +115,21 @@ impl Store {
     /// reason to disable unfollowing.
     pub fn connect() -> Result<Self> {
         let url = env::var(URL_VAR).unwrap_or_else(|_| DEFAULT_URL.to_owned());
+        Self::open(&url)
+    }
 
-        let client = connection_config(&url)?.connect(NoTls).with_context(|| {
+    /// Connects to an explicit address and applies the schema.
+    ///
+    /// Separate from [`Self::connect`] so a caller can name the database instead
+    /// of having it read from the environment. The tests use it to work against
+    /// a scratch database, which is the only safe way to exercise a store that
+    /// otherwise holds the real keep-list.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the server cannot be reached or the schema cannot be applied.
+    pub fn open(url: &str) -> Result<Self> {
+        let client = connection_config(url)?.connect(NoTls).with_context(|| {
             format!("could not connect to PostgreSQL at {url}. See the README for the setup steps")
         })?;
 

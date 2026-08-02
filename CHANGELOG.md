@@ -5,6 +5,24 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-08-03
+
+### Added
+
+- Integration tests for the store, run against a real PostgreSQL server. Each
+  creates a scratch database of its own and drops it afterwards, so none of them
+  can reach the real keep-list. They cover the keep-list round trip and its
+  duplicates, the sweep window including the absent case, relationships with
+  their attribution and timestamps, the upsert on a second save, and the sync
+  history and its order
+- A PostgreSQL service in CI, and a step that fails if the store tests skipped
+  themselves there. A skip and a pass look identical otherwise
+
+### Changed
+
+- `Store::open` takes an explicit address, so a caller can name the database
+  rather than have it read from the environment. `Store::connect` is now that
+  function applied to `DATABASE_URL` or the default
 ## [0.8.2] - 2026-08-02
 
 ### Added

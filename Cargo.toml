@@ -1,6 +1,6 @@
 [package]
 name = "gitbye"
-version = "0.8.2"
+version = "0.8.3"
 edition = "2024"
 rust-version = "1.97"
 description = "Notices the accounts that follow you, collect the follow-back, then quietly leave, and takes your follow back"
@@ -17,6 +17,12 @@ eframe = "0.32.3"
 postgres = "0.19.14"
 reqwest = { version = "0.12.24", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 serde = { version = "1.0.228", features = ["derive"] }
+
+[dev-dependencies]
+# Already in the tree as a dependency of the library. The integration tests need
+# it directly so they can create and drop a scratch database of their own, since
+# a test must never be pointed at the real keep-list.
+postgres = "0.19.14"
 
 [lints.rust]
 unsafe_code = "forbid"
