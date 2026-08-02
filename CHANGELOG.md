@@ -5,6 +5,22 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-08-02
+
+### Changed
+
+- The README describes what the application is for. It had opened by saying the
+  point was unfollowing people who do not follow back, which is not the point,
+  reads as though a follow is owed, and describes a tool nobody needs. The
+  subject is the follow-and-run: an account that follows, collects the
+  follow-back, and leaves, so that its ratio flatters it
+- Two statements were out of date and are corrected: choosing a unit converts
+  the window rather than reinterpreting the count, and the upper bound is five
+  years rather than one
+- The buckets are described as somewhere to look rather than as the feature, and
+  the keep-list as what it is for, which is following people whose opinion of
+  you is beside the point
+
 ## [0.7.1] - 2026-08-02
 
 ### Fixed

@@ -1,11 +1,38 @@
 # GitBye
 
-A desktop application that compares the GitHub accounts you follow against the
-accounts following you, then lets you unfollow the ones that never reciprocated.
+There is a species of GitHub user who follows you, waits politely for you to
+follow back, and then leaves. Not because you disappointed them. They were never
+staying. You were a number.
 
-Accounts you want to keep following regardless are stored in a keep-list, which
-removes them from the unfollow list entirely. That decision is reversible at any
-time.
+The manoeuvre is simple enough that a small script can do it, and frequently
+does. Follow a few hundred people. Some fraction follow back out of ordinary
+politeness. Wait a week or two, unfollow the lot, and repeat. The end state is a
+profile reading 4,000 followers and 12 following, which is meant to be read as
+"important person, extremely selective", and is in fact read as "person who has
+discovered a for-loop".
+
+GitBye keeps the receipts.
+
+It watches who followed whom first, and when. If somebody follows you, you
+return the courtesy, and they slip away shortly afterwards, GitBye notices and
+can quietly undo your half of the arrangement. Their follower count returns to
+being an honest description of reality. Everyone moves on with their lives.
+
+That is the point of this application. It is not a tool for culling people who
+have not followed you back, and it takes no view on whether anybody owes you a
+follow. Plenty of the best accounts on GitHub follow nobody at all. The thing
+being measured here is not popularity, it is whether a follow was ever meant.
+
+## What it actually does
+
+It records the shape of your follow graph every time it syncs, so it can tell
+the difference between these two things, which look identical in a snapshot:
+
+- somebody you followed who never followed back (fine, normal, their prerogative)
+- somebody who followed you, collected the follow-back, and left (the thing)
+
+Only the second is ever acted on automatically. That distinction is the entire
+reason there is a database involved.
 
 ## Buckets
 
@@ -16,8 +43,13 @@ time.
 | Mutuals | followed, follows back | Unfollow, Keep |
 | Fans | follows you, not followed by you | Follow back |
 
-Every bucket you follow from offers Unfollow. The keep-list shields an account
-from the scheduled sweep, never from you.
+These are for looking, and for the occasional deliberate tidy-up. Nothing here
+happens on its own.
+
+The keep-list is for the accounts you follow because you want to, and whose
+opinion of you is beside the point. Maintainers of libraries you depend on, that
+one person who posts brilliant things and has never noticed you exist, and so
+on. Put them on the keep-list and the automation will never touch them.
 
 The keep-list is subtracted from the first tab, so Select All there is safe by
 construction rather than by care.
@@ -44,8 +76,8 @@ gh auth refresh -h github.com -s user:follow
 Without it the application still starts and every list still works. Only the
 follow and unfollow actions fail, with a banner naming this command.
 
-Note that `gh auth token` returns `$GITHUB_TOKEN` when that variable is set,
-in preference to the token in the keyring. If you export one, that is the token
+Note that `gh auth token` returns `$GITHUB_TOKEN` when that variable is set, in
+preference to the token in the keyring. If you export one, that is the token
 this application receives, and the scope has to be present on it. `gh auth
 refresh` cannot add a scope to a token it does not manage, so it will appear to
 succeed while changing nothing that this application sees. Check which scopes
@@ -65,13 +97,13 @@ token `gh` itself holds, so every way of starting the application agrees:
 env -u GITHUB_TOKEN gh auth refresh -h github.com -s user:follow
 ```
 
-Either way the application now checks on each sync and says so in a banner
-before you select anything, instead of failing once a batch is under way.
+Either way the application checks on each sync and says so in a banner before
+you select anything, instead of failing once a batch is under way.
 
 ### 2. Database
 
-The keep-list and the sync history live in PostgreSQL. On Arch Linux, if no
-cluster has been initialised yet:
+The record of who moved first lives in PostgreSQL, along with the keep-list and
+the sync history. On Arch Linux, if no cluster has been initialised yet:
 
 ```bash
 sudo -iu postgres initdb -D /var/lib/postgres/data
@@ -109,10 +141,10 @@ is exactly why the default exists.
 
 Tables are created on first run. There is no migration step.
 
-If the server is unreachable, the application still
-starts and every list still works, but unfollowing is disabled. An empty
-keep-list and an unloadable keep-list look identical in a set difference, and one
-of those means unfollowing accounts that were meant to be spared.
+If the server is unreachable, the application still starts and every list still
+works, but unfollowing is disabled. An empty keep-list and an unloadable
+keep-list look identical in a set difference, and one of those means unfollowing
+accounts that were meant to be spared.
 
 ### 3. Window placement
 
@@ -185,8 +217,8 @@ gitbye --help           usage
 
 ## The unattended sweep
 
-The sweep returns follows that were never sincere. It unfollows an account only
-when every one of these holds:
+This is the part that deals with the follow-and-run. It unfollows an account
+only when every one of these holds:
 
 - they followed you first, and this application watched it happen
 - you followed them back
@@ -194,17 +226,30 @@ when every one of these holds:
 - less than the sweep window passed between their follow and their unfollow
 - they are not on the keep-list
 
+All five. A person who followed you, was followed back, and stayed is not
+touched, whatever they do later. Somebody who drifts off after a year has simply
+changed their mind, which people are allowed to do. The rule is aimed at the
+narrow case where the follow was a transaction and the unfollow was the second
+half of it.
+
 **A follow you began is never withdrawn automatically.** If you followed someone
 first, that was your decision, and only you undo it. Those accounts still appear
-in "Not following back" for manual action.
+in "Not following back" for manual action, and the automation ignores them
+entirely.
 
 Coming back restarts the clock, so a leave-and-return cannot be used to run out
-the window.
+the window. The obvious next move, refollowing right before the deadline, is
+therefore just the same manoeuvre performed twice as slowly.
 
 ### The window
 
 Ten weeks by default. It is a judgement about how long a follow has to last
-before it counts as sincere, so it is yours to set, from one day to a year.
+before it counts as sincere, so it is yours to set, from one day to five years.
+
+Ten weeks is deliberately generous. Nobody stumbles into it by accident: a
+follow that lasted two months was a real follow, and if it ends after that then
+something ordinary happened. The people this catches are typically gone in
+under a fortnight, because the whole approach depends on cycling quickly.
 
 Change it in the window under History, where the plot shows what has happened
 and the control sets the rule for what happens next. Or from the command line:
@@ -219,9 +264,9 @@ sixty-five, stated here because neither is a fixed length and the window is a
 rule of thumb rather than a date.
 
 In the window, the count steps one at a time by button or by drag, and the unit
-sits beside it. Changing the unit keeps the count and reinterprets it, so six
-days becomes six weeks. Every figure between the bounds is reachable, rather
-than only the multiples of some fixed step.
+sits beside it. Choosing a different unit converts the window rather than
+reinterpreting the count, so six weeks becomes forty-two days rather than six
+days. Every figure between the bounds is reachable.
 
 Anything outside one day to five years is refused rather than quietly clamped,
 because a window of nothing sweeps everyone who ever left and a window nothing
@@ -245,7 +290,11 @@ eligible that were not before. `--dry-run` is how to see that before it acts.
 The sweep can only judge relationships it observed from the beginning. Anything
 that already existed when you first ran the application is recorded as unknown
 and is permanently exempt, because there is no way to discover who moved first
-after the fact. That exemption is reported on every run.
+after the fact.
+
+This means a fresh install does nothing at all for a while, which is correct and
+slightly disappointing. Every run reports the exemption so the silence is never
+mistaken for a verdict.
 
 ### Scheduling it
 
@@ -266,6 +315,19 @@ journalctl --user -u gitbye-sweep --since today
 
 Once it selects who you expect, change `ExecStart` in the service file from
 `--dry-run` to `--sweep` and run `systemctl --user daemon-reload`.
+
+## A note on proportion
+
+This is a follow button. Nobody has been wronged here, and the correct emotional
+response to being farmed is mild amusement rather than a grudge.
+
+The reason to run this is not revenge, it is accuracy. A follower count is
+supposed to mean something, and it stops meaning anything when a portion of it
+is manufactured. GitBye just declines to keep subsidising the illusion, on your
+behalf, automatically, so you never have to think about it again.
+
+Then it gets out of the way, which is more than can be said for the people it
+is designed to notice.
 
 ## Build and run from source
 
