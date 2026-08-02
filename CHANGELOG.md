@@ -5,6 +5,21 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-08-02
+
+### Added
+
+- Tests for walking the pages of a listing endpoint, which had none. It decides
+  how much of the follow graph the application ever sees and fails silently in
+  both directions: stop a page early and accounts vanish without an error, so
+  the buckets under-report and the sweep judges against a partial picture
+
+### Changed
+
+- The paging loop is separated from the request that fills it, so the stopping
+  rule can be tested without a network and without a new dependency. The caller
+  supplies the fetcher
+
 ## [0.8.1] - 2026-08-02
 
 ### Changed

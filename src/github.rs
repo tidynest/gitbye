@@ -16,10 +16,10 @@ use crate::model::User;
 const API: &str = "https://api.github.com";
 
 /// Maximum accounts GitHub returns per page.
-const PER_PAGE: usize = 100;
+pub const PER_PAGE: usize = 100;
 
 /// Upper bound on pages walked, so a misbehaving response cannot loop forever.
-const MAX_PAGES: usize = 100;
+pub const MAX_PAGES: usize = 100;
 
 /// Sent as the User-Agent, which GitHub requires on every request.
 const AGENT: &str = concat!("gitbye/", env!("CARGO_PKG_VERSION"));
@@ -103,31 +103,16 @@ impl Github {
 
     /// Walks every page of a listing endpoint and collects the accounts.
     fn paginate(&self, path: &str) -> Result<Vec<User>> {
-        let mut collected = Vec::new();
-
-        for page in 1..=MAX_PAGES {
+        collect_pages(path, |page| {
             let url = format!("{path}?per_page={PER_PAGE}&page={page}");
-            let batch: Vec<User> = self
-                .request(Method::GET, &url)
+            self.request(Method::GET, &url)
                 .send()
                 .with_context(|| format!("could not reach GitHub for {path}"))?
                 .error_for_status()
                 .with_context(|| format!("GitHub rejected the request for {path}"))?
                 .json()
-                .with_context(|| format!("could not decode the response for {path}"))?;
-
-            let last_page = batch.len() < PER_PAGE;
-            collected.extend(batch);
-
-            if last_page {
-                return Ok(collected);
-            }
-        }
-
-        bail!(
-            "{path} returned more than {} accounts, refusing to page further",
-            MAX_PAGES * PER_PAGE
-        )
+                .with_context(|| format!("could not decode the response for {path}"))
+        })
     }
 
     /// Every account the authenticated user follows.
@@ -212,4 +197,41 @@ impl Github {
     pub fn unfollow(&self, login: &str) -> Result<()> {
         self.amend_following(Method::DELETE, login)
     }
+}
+
+/// Walks pages until a short one arrives, refusing once there have been too many.
+///
+/// Separated from the request so the stopping rule can be tested without a
+/// network. Getting this wrong fails quietly, which is the worst way: stop a page
+/// early and the follow graph is silently truncated, so the buckets under-report
+/// and the sweep judges against a partial picture.
+///
+/// # Errors
+///
+/// Fails when a page cannot be fetched, or when [`MAX_PAGES`] is reached without
+/// a short page, which means the endpoint is not terminating as documented.
+pub fn collect_pages(
+    path: &str,
+    mut fetch: impl FnMut(usize) -> Result<Vec<User>>,
+) -> Result<Vec<User>> {
+    let mut collected = Vec::new();
+
+    for page in 1..=MAX_PAGES {
+        let batch = fetch(page)?;
+
+        // A page shorter than the maximum is the last one. A page that is exactly
+        // full might also be the last, but that costs one more request to find
+        // out, which is the right trade against dropping whoever came after it.
+        let last_page = batch.len() < PER_PAGE;
+        collected.extend(batch);
+
+        if last_page {
+            return Ok(collected);
+        }
+    }
+
+    bail!(
+        "{path} returned more than {} accounts, refusing to page further",
+        MAX_PAGES * PER_PAGE
+    )
 }
