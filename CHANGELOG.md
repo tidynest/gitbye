@@ -36,6 +36,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `Store::open` takes an explicit address, so a caller can name the database
   rather than have it read from the environment. `Store::connect` is now that
   function applied to `DATABASE_URL` or the default
+
 ## [0.8.2] - 2026-08-02
 
 ### Added

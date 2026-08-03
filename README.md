@@ -465,9 +465,10 @@ cannot quietly go out of date.
 
 ## Backups
 
-Read-only snapshots of the follow graph live in `../gitbye-backups/`,
-deliberately outside this repository so that resetting or re-cloning it cannot
-destroy the safety net. That directory documents how to take a fresh snapshot and
+Read-only snapshots of the follow graph live in `../gitbye-backups/`, a sibling
+directory rather than anything this repository ships. It is deliberately outside,
+so that resetting or re-cloning this repository cannot destroy the safety net.
+Create your own wherever you like; nothing reads it automatically. That directory documents how to take a fresh snapshot and
 how to restore from one.
 
 Take a snapshot before any bulk unfollow you are unsure about.
