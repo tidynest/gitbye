@@ -1,6 +1,6 @@
 [package]
 name = "gitbye"
-version = "0.8.3"
+version = "0.8.4"
 edition = "2024"
 rust-version = "1.97"
 description = "Notices the accounts that follow you, collect the follow-back, then quietly leave, and takes your follow back"

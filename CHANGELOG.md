@@ -5,6 +5,19 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-08-03
+
+### Fixed
+
+- The scheduled sweep's report is written to `~/.local/state/gitbye/sweep.log`
+  instead of being left to the journal. On a system that does not capture
+  user-unit output there, the timer ran correctly and said nothing, which is
+  indistinguishable from a run that found nobody eligible. That is the one
+  report the dry run exists to produce
+- `StandardOutput=append:` cannot be used for this, because it applies to
+  `ExecStartPre` as well, so the command creating the log directory could not
+  start until the directory existed. The shell does the redirection instead
+
 ## [0.8.3] - 2026-08-03
 
 ### Added

@@ -7,12 +7,26 @@ After=network-online.target
 
 [Service]
 Type=oneshot
+SyslogIdentifier=gitbye-sweep
+
+# DATABASE_URL is set here only to be explicit. Without it the application
+# finds the same database on its own.
 Environment=DATABASE_URL=postgresql:///gitbye
 
 # Deliberately --dry-run. Installing this file arms a report, not an unfollow.
-# Read a few days of `journalctl --user -u gitbye-sweep` first, satisfy yourself
-# that it selects who you expect, and only then change this to --sweep.
-ExecStart=%h/.local/bin/gitbye --dry-run
+# Read a few days of ~/.local/state/gitbye/sweep.log, satisfy yourself that it
+# selects who you expect, and only then change --dry-run to --sweep below.
+#
+# The report is appended to a file rather than left to the journal, because not
+# every system captures user-unit output there, and a run that reports nowhere
+# is worse than one that does not run at all: it looks exactly like a run that
+# found nobody eligible.
+#
+# The redirection is the shell's rather than StandardOutput=append:, which
+# cannot be used for this. That setting applies to ExecStartPre as well, so the
+# command that creates the directory cannot itself start until the directory
+# already exists.
+ExecStart=/bin/sh -c 'mkdir -p "$HOME/.local/state/gitbye" && exec "$HOME/.local/bin/gitbye" --dry-run >> "$HOME/.local/state/gitbye/sweep.log" 2>&1'
 
 # It borrows the token from `gh`, which reads the keyring, so it cannot run in a
 # hardened sandbox without the session bus.

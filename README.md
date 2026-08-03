@@ -400,8 +400,13 @@ The shipped unit runs `--dry-run`, so enabling the timer arms a **report, not an
 unfollow**. Watch it for a few days:
 
 ```bash
-journalctl --user -u gitbye-sweep --since today
+cat ~/.local/state/gitbye/sweep.log
 ```
+
+The report is appended to that file rather than left to the journal, because not
+every system captures user-unit output there. A run that reports nowhere is
+worse than one that does not run at all: it looks exactly like a run that found
+nobody eligible.
 
 Once it selects who you expect, change `ExecStart` in the service file from
 `--dry-run` to `--sweep` and run `systemctl --user daemon-reload`.
