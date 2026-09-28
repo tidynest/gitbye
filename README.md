@@ -111,6 +111,10 @@ If you would rather have it stated plainly, that version is in
 
 ## What it actually does
 
+<p align="center">
+  <img src="docs/screenshot.png" alt="GitBye's History view, with a line chart of following against followers over 25 syncs in 48 days, the sweep window set to 10 weeks, a list of recent changes where accounts unfollowed or followed you, and the bucket counts down the sidebar">
+</p>
+
 It records the shape of your follow graph every time it syncs, so it can tell
 the difference between these two things, which look identical in a snapshot:
 
