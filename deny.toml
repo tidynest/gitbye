@@ -1,6 +1,9 @@
 [advisories]
 ignore = [
     { id = "RUSTSEC-2026-0192", reason = "ttf-parser unmaintained, no safe upgrade published. Reached only through egui's font rasteriser (eframe -> egui -> epaint -> ab_glyph -> owned_ttf_parser). The only fonts it ever parses are the ones egui bundles at compile time, so no untrusted input reaches it and there is no first-party usage" },
+    { id = "RUSTSEC-2026-0370", reason = "zvariant unmaintained because it was folded into zbus 6. Reached only through egui's screen-reader support (egui-winit -> accesskit_winit -> accesskit_unix -> atspi -> zbus 5), which talks to the local AT-SPI D-Bus. No maintained release until accesskit moves to zbus 6" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names, same cause and same path as RUSTSEC-2026-0370" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive, same cause and same path as RUSTSEC-2026-0370" },
 ]
 
 [licenses]
