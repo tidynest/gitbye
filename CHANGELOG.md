@@ -5,6 +5,19 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- rustls 0.23.43 to 0.23.46 and rustls-webpki 0.103.13 to 0.103.16, the TLS
+  stack every request to the GitHub API goes through, for RUSTSEC-2026-0285,
+  RUSTSEC-2026-0346 to RUSTSEC-2026-0349 and RUSTSEC-2026-0382
+- webpki-roots 1.0.9 to 1.0.11 for RUSTSEC-2026-0381, whose bundled roots
+  trusted distrusted emSign intermediates
+- quinn-proto 0.11.16 to 0.11.19 for RUSTSEC-2026-0338 to RUSTSEC-2026-0342
+- tokio 1.53.1 to 1.54.1 for RUSTSEC-2026-0386
+- ctutils 0.4.2 to 0.4.7 for RUSTSEC-2026-0385
+- chacha20 0.10.1 to 0.10.2 and clipboard-win 5.4.1 to 5.4.3, off versions
+  that were yanked
+
 ## [0.8.4] - 2026-08-03
 
 ### Fixed
